@@ -34,6 +34,10 @@
         <!-- Holding back activemq version as newest version no long support spring wired broker config-->
         <activemq.version>5.13.4</activemq.version>
 
+        <postgresql.version>42.1.4</postgresql.version>
+        <hibernate.version>5.0.12.Final</hibernate.version>
+        <com.h2database.version>1.4.196</com.h2database.version>
+
         <!-- fabric8.env.AB_JOLOKIA_AUTH_OPENSHIFT>true</fabric8.env.AB_JOLOKIA_AUTH_OPENSHIFT -->
         <fabric8.label.component>${project.artifactId}</fabric8.label.component>
         <fabric8.label.container>spring-boot</fabric8.label.container>
@@ -158,6 +162,34 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.hibernate</groupId>
+                    <artifactId>hibernate-core</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>${hibernate.version}</version>
+        </dependency>
+
+        <!--<dependency>-->
+            <!--<groupId>com.h2database</groupId>-->
+            <!--<artifactId>h2</artifactId>-->
+            <!--<version>${com.h2database.version}</version>-->
+        <!--</dependency>-->
+
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${postgresql.version}</version>
         </dependency>
 
         <dependency>
