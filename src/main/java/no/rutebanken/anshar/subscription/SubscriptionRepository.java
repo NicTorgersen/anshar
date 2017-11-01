@@ -1,5 +1,6 @@
 package no.rutebanken.anshar.subscription;
 
+import no.rutebanken.anshar.subscription.models.Subscription;
 import org.springframework.data.repository.Repository;
 
 import java.util.List;

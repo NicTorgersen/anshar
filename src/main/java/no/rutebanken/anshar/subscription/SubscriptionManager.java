@@ -8,6 +8,7 @@ import no.rutebanken.anshar.messages.Situations;
 import no.rutebanken.anshar.messages.VehicleActivities;
 import no.rutebanken.anshar.routes.health.HealthManager;
 import no.rutebanken.anshar.routes.siri.SiriObjectFactory;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
@@ -36,6 +37,9 @@ public class SubscriptionManager {
     @Autowired
     @Qualifier("getSubscriptionsMap")
     private IMap<String, SubscriptionSetup> subscriptions;
+
+    @Autowired
+    SubscriptionRepository repository;
 
     @Autowired
     @Qualifier("getLastActivityMap")
@@ -199,6 +203,7 @@ public class SubscriptionManager {
 
     public boolean activatePendingSubscription(String subscriptionId) {
         SubscriptionSetup subscriptionSetup = subscriptions.get(subscriptionId);
+
         if (subscriptionSetup != null) {
             subscriptionSetup.setActive(true);
             // Subscriptions are inserted as immutable - need to replace previous value
@@ -209,15 +214,18 @@ public class SubscriptionManager {
             if (!dataReceived.containsKey(subscriptionId)) {
                 dataReceived(subscriptionId);
             }
+
+            Subscription subscription = repository.findBySubscriptionId(subscriptionSetup.getSubscriptionId());
+            if (subscription != null) {
+                subscription.setActive(true);
+                subscription.getActivity().setActivated(Instant.now());
+            }
+
             return true;
         }
 
         logger.warn("Pending subscriptionId [{}] NOT found", subscriptionId);
         return false;
-    }
-
-    public boolean isNewSubscription(String subscriptionId) {
-        return lastActivity.get(subscriptionId) == null;
     }
 
     public Boolean isSubscriptionHealthy(String subscriptionId) {

@@ -1,6 +1,10 @@
-package no.rutebanken.anshar.subscription;
+package no.rutebanken.anshar.subscription.models;
 
 import no.rutebanken.anshar.routes.siri.transformer.ValueAdapter;
+import no.rutebanken.anshar.subscription.DurationConverter;
+import no.rutebanken.anshar.subscription.RequestType;
+import no.rutebanken.anshar.subscription.SubscriptionPreset;
+import no.rutebanken.anshar.subscription.SubscriptionSetup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,6 +14,7 @@ import java.text.MessageFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Entity
 public class Subscription implements Serializable {
@@ -17,11 +22,14 @@ public class Subscription implements Serializable {
     private Logger logger = LoggerFactory.getLogger(Subscription.class);
 
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long internalId;
 
     @Transient
     private List<ValueAdapter> mappingAdapters = new ArrayList<>();
+
+    @OneToOne
+    private Activity activity;
 
     @Enumerated(EnumType.STRING)
     private SubscriptionSetup.SubscriptionType subscriptionType;
@@ -35,25 +43,29 @@ public class Subscription implements Serializable {
     @Enumerated(EnumType.STRING)
     private SubscriptionPreset filterMapPreset;
 
-    private String heartbeatInterval;
-    private String updateInterval;
-    private String previewInterval;
-    private String changeBeforeUpdates;
-    private String operatorNamespace;
 
-    String subscribeUrl,
-            deleteSubscriptionUrl,
-            checkStatusUrl,
-            getVehicleMonitoringUrl,
-            getSituationExchangeUrl,
-            getEstimatedTimetableUrl;
+    @Convert(converter = DurationConverter.class)
+    private Duration heartbeatInterval;
+
+    @Convert(converter = DurationConverter.class)
+    private Duration updateInterval;
+
+    @Convert(converter = DurationConverter.class)
+    private Duration previewInterval;
+
+    @Convert(converter = DurationConverter.class)
+    private Duration changeBeforeUpdates;
+
+    @Convert(converter = DurationConverter.class)
+    private Duration durationOfSubscription;
+
+    private String operatorNamespace;
 
     private String subscriptionId;
     private String version;
     private String vendor;
     private String datasetId;
 
-    private String durationOfSubscription;
     private String requestorRef;
     private boolean active;
 
@@ -71,52 +83,147 @@ public class Subscription implements Serializable {
     private String contentType;
     private String vehicleMonitoringRefValue;
 
-    public Duration getHeartbeatInterval() {
-        return Duration.parse(heartbeatInterval);
+
+    @MapKeyColumn(name = "Request_Type")
+    @MapKeyEnumerated(EnumType.STRING)
+    @Column(name = "URL")
+    @ElementCollection(fetch = FetchType.EAGER)
+    private Map<RequestType, String> urlMap;
+
+    public long getInternalId() {
+        return internalId;
     }
 
-    public String getOperatorNamespace() {
-        return operatorNamespace;
-    }
-
-    public String getSubscriptionId() {
-        return subscriptionId;
-    }
-
-    public String getVersion() {
-        return version;
-    }
-
-    public String getVendor() {
-        return vendor;
-    }
-
-    public String getDatasetId() {
-        return datasetId;
-    }
-
-    public SubscriptionSetup.ServiceType getServiceType() {
-        return serviceType;
+    public void setInternalId(long internalId) {
+        this.internalId = internalId;
     }
 
     public List<ValueAdapter> getMappingAdapters() {
         return mappingAdapters;
     }
 
-    public Duration getDurationOfSubscription() {
-        return Duration.parse(durationOfSubscription);
+    public void setMappingAdapters(List<ValueAdapter> mappingAdapters) {
+        this.mappingAdapters = mappingAdapters;
     }
 
-    public void setDurationOfSubscription(String durationOfSubscription) {
+    public SubscriptionSetup.SubscriptionType getSubscriptionType() {
+        return subscriptionType;
+    }
+
+    public void setSubscriptionType(SubscriptionSetup.SubscriptionType subscriptionType) {
+        this.subscriptionType = subscriptionType;
+    }
+
+    public SubscriptionSetup.ServiceType getServiceType() {
+        return serviceType;
+    }
+
+    public void setServiceType(SubscriptionSetup.ServiceType serviceType) {
+        this.serviceType = serviceType;
+    }
+
+    public SubscriptionSetup.SubscriptionMode getSubscriptionMode() {
+        return subscriptionMode;
+    }
+
+    public void setSubscriptionMode(SubscriptionSetup.SubscriptionMode subscriptionMode) {
+        this.subscriptionMode = subscriptionMode;
+    }
+
+    public SubscriptionPreset getFilterMapPreset() {
+        return filterMapPreset;
+    }
+
+    public void setFilterMapPreset(SubscriptionPreset filterMapPreset) {
+        this.filterMapPreset = filterMapPreset;
+    }
+
+    public Duration getHeartbeatInterval() {
+        return heartbeatInterval;
+    }
+
+    public void setHeartbeatInterval(Duration heartbeatInterval) {
+        this.heartbeatInterval = heartbeatInterval;
+    }
+
+    public Duration getUpdateInterval() {
+        return updateInterval;
+    }
+
+    public void setUpdateInterval(Duration updateInterval) {
+        this.updateInterval = updateInterval;
+    }
+
+    public Duration getPreviewInterval() {
+        return previewInterval;
+    }
+
+    public void setPreviewInterval(Duration previewInterval) {
+        this.previewInterval = previewInterval;
+    }
+
+    public Duration getChangeBeforeUpdates() {
+        return changeBeforeUpdates;
+    }
+
+    public void setChangeBeforeUpdates(Duration changeBeforeUpdates) {
+        this.changeBeforeUpdates = changeBeforeUpdates;
+    }
+
+    public Duration getDurationOfSubscription() {
+        return durationOfSubscription;
+    }
+
+    public void setDurationOfSubscription(Duration durationOfSubscription) {
         this.durationOfSubscription = durationOfSubscription;
+    }
+
+    public String getOperatorNamespace() {
+        return operatorNamespace;
+    }
+
+    public void setOperatorNamespace(String operatorNamespace) {
+        this.operatorNamespace = operatorNamespace;
+    }
+
+    public String getSubscriptionId() {
+        return subscriptionId;
+    }
+
+    public void setSubscriptionId(String subscriptionId) {
+        this.subscriptionId = subscriptionId;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
+    }
+
+    public String getVendor() {
+        return vendor;
+    }
+
+    public void setVendor(String vendor) {
+        this.vendor = vendor;
+    }
+
+    public String getDatasetId() {
+        return datasetId;
+    }
+
+    public void setDatasetId(String datasetId) {
+        this.datasetId = datasetId;
     }
 
     public String getRequestorRef() {
         return requestorRef;
     }
 
-    public SubscriptionSetup.SubscriptionType getSubscriptionType() {
-        return subscriptionType;
+    public void setRequestorRef(String requestorRef) {
+        this.requestorRef = requestorRef;
     }
 
     public boolean isActive() {
@@ -127,81 +234,77 @@ public class Subscription implements Serializable {
         this.active = active;
     }
 
-    public long getInternalId() {
-        return internalId;
-    }
-
-    public SubscriptionSetup.SubscriptionMode getSubscriptionMode() {
-        return subscriptionMode;
-    }
-
-    public SubscriptionPreset getFilterMapPreset() {
-        return filterMapPreset;
-    }
-
-    public String getUpdateInterval() {
-        return updateInterval;
-    }
-
-    public String getPreviewInterval() {
-        return previewInterval;
-    }
-
-    public String getChangeBeforeUpdates() {
-        return changeBeforeUpdates;
-    }
-
     public List<String> getIdMappingPrefixes() {
         return idMappingPrefixes;
+    }
+
+    public void setIdMappingPrefixes(List<String> idMappingPrefixes) {
+        this.idMappingPrefixes = idMappingPrefixes;
     }
 
     public String getMappingAdapterId() {
         return mappingAdapterId;
     }
 
+    public void setMappingAdapterId(String mappingAdapterId) {
+        this.mappingAdapterId = mappingAdapterId;
+    }
+
     public String getAddressFieldName() {
         return addressFieldName;
+    }
+
+    public void setAddressFieldName(String addressFieldName) {
+        this.addressFieldName = addressFieldName;
     }
 
     public String getSoapenvNamespace() {
         return soapenvNamespace;
     }
 
+    public void setSoapenvNamespace(String soapenvNamespace) {
+        this.soapenvNamespace = soapenvNamespace;
+    }
+
     public Boolean getIncrementalUpdates() {
         return incrementalUpdates;
+    }
+
+    public void setIncrementalUpdates(Boolean incrementalUpdates) {
+        this.incrementalUpdates = incrementalUpdates;
     }
 
     public boolean isOverrideHttps() {
         return overrideHttps;
     }
 
+    public void setOverrideHttps(boolean overrideHttps) {
+        this.overrideHttps = overrideHttps;
+    }
+
     public String getContentType() {
         return contentType;
+    }
+
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
     }
 
     public String getVehicleMonitoringRefValue() {
         return vehicleMonitoringRefValue;
     }
 
-    public String getUrl(RequestType requestType) {
-        switch (requestType) {
-            case SUBSCRIBE:
-                return subscribeUrl;
-            case CHECK_STATUS:
-                return checkStatusUrl;
-            case DELETE_SUBSCRIPTION:
-                return deleteSubscriptionUrl;
-            case GET_SITUATION_EXCHANGE:
-                return getSituationExchangeUrl;
-            case GET_VEHICLE_MONITORING:
-                return getVehicleMonitoringUrl;
-            case GET_ESTIMATED_TIMETABLE:
-                return getEstimatedTimetableUrl;
-            default:
-                return  null;
-        }
+    public void setVehicleMonitoringRefValue(String vehicleMonitoringRefValue) {
+        this.vehicleMonitoringRefValue = vehicleMonitoringRefValue;
     }
 
+    public Activity getActivity() {
+        return activity;
+    }
+
+    public void setActivity(Activity activity) {
+        this.activity = activity;
+    }
 
     public String toString() {
         return MessageFormat.format("[vendor={0}, subscriptionId={1}, internalId={2}]", vendor, subscriptionId, internalId);
@@ -237,26 +340,6 @@ public class Subscription implements Serializable {
             logger.info("getOperatorNamespace() does not match [{}] vs [{}]", getOperatorNamespace(), that.getOperatorNamespace());
             return false;
         }
-
-        if (subscribeUrl != null ? !subscribeUrl.equals(that.subscribeUrl) : that.subscribeUrl != null) {
-            return false;
-        }
-        if (deleteSubscriptionUrl != null ? !deleteSubscriptionUrl.equals(that.deleteSubscriptionUrl) : that.deleteSubscriptionUrl != null) {
-            return false;
-        }
-        if (checkStatusUrl != null ? !checkStatusUrl.equals(that.checkStatusUrl) : that.checkStatusUrl != null) {
-            return false;
-        }
-        if (getVehicleMonitoringUrl != null ? !getVehicleMonitoringUrl.equals(that.getVehicleMonitoringUrl) : that.getVehicleMonitoringUrl != null) {
-            return false;
-        }
-        if (getSituationExchangeUrl != null ? !getSituationExchangeUrl.equals(that.getSituationExchangeUrl) : that.getSituationExchangeUrl != null) {
-            return false;
-        }
-        if (getEstimatedTimetableUrl != null ? !getEstimatedTimetableUrl.equals(that.getEstimatedTimetableUrl) : that.getEstimatedTimetableUrl != null) {
-            return false;
-        }
-
         if (!getVersion().equals(that.getVersion())) {
             logger.info("getVersion() does not match [{}] vs [{}]", getVersion(), that.getVersion());
             return false;
@@ -290,5 +373,13 @@ public class Subscription implements Serializable {
             return false;
         }
         return true;
+    }
+
+    public void setUrlMap(Map<RequestType, String> urlMap) {
+        this.urlMap = urlMap;
+    }
+
+    public Map<RequestType, String> getUrlMap() {
+        return urlMap;
     }
 }

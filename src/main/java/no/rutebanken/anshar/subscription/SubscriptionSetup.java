@@ -37,7 +37,7 @@ public class SubscriptionSetup implements Serializable {
     private Map<Class, Set<Object>> filterMap;
     private List<String> idMappingPrefixes;
     private String mappingAdapterId;
-    private SubscriptionPreset[] filterMapPresets;
+    SubscriptionPreset filterMapPresets;
     private String addressFieldName;
     private String soapenvNamespace;
     private Boolean incrementalUpdates;
@@ -211,10 +211,10 @@ public class SubscriptionSetup implements Serializable {
         return subscriptionMode;
     }
 
-    public void setFilterPresets(SubscriptionPreset[] presets) {
-        this.filterMapPresets = presets;
+    public void setFilterPresets(SubscriptionPreset preset) {
+        this.filterMapPresets = preset;
         filterMap = new HashMap<>();
-        for (SubscriptionPreset preset : presets) {
+        if (preset != null) {
             addFilterMap(new FilterMapPresets().get(preset));
         }
     }
@@ -332,7 +332,7 @@ public class SubscriptionSetup implements Serializable {
         }
     }
 
-    private void setHeartbeatInterval(Duration heartbeatInterval) {
+    void setHeartbeatInterval(Duration heartbeatInterval) {
         this.heartbeatInterval = heartbeatInterval;
     }
 
@@ -352,14 +352,14 @@ public class SubscriptionSetup implements Serializable {
         setPreviewInterval(Duration.ofSeconds(seconds));
     }
 
-    private void setPreviewInterval(Duration previewIntervalSeconds) {
+    void setPreviewInterval(Duration previewIntervalSeconds) {
         this.previewInterval = previewIntervalSeconds;
     }
     public void setChangeBeforeUpdatesSeconds(int seconds) {
         setChangeBeforeUpdates(Duration.ofSeconds(seconds));
     }
 
-    private void setChangeBeforeUpdates(Duration changeBeforeUpdates) {
+    void setChangeBeforeUpdates(Duration changeBeforeUpdates) {
         this.changeBeforeUpdates = changeBeforeUpdates;
     }
 
@@ -393,6 +393,10 @@ public class SubscriptionSetup implements Serializable {
 
     public void setDurationOfSubscriptionHours(int hours) {
         this.durationOfSubscription = Duration.ofHours(hours);
+    }
+
+    void setDurationOfSubscription(Duration durationOfSubscription) {
+        this.durationOfSubscription = durationOfSubscription;
     }
 
     public void setRequestorRef(String requestorRef) {
@@ -467,10 +471,6 @@ public class SubscriptionSetup implements Serializable {
         }
         if (getMappingAdapterId() != null ? !getMappingAdapterId().equals(that.getMappingAdapterId()) : that.getMappingAdapterId() != null) {
             logger.info("getMappingAdapterId() does not match [{}] vs [{}]", getMappingAdapterId(), that.getMappingAdapterId());
-            return false;
-        }
-        if (!Arrays.equals(filterMapPresets, that.filterMapPresets)) {
-            logger.info("filterMapPresets does not match [{}] vs [{}]", filterMapPresets, that.filterMapPresets);
             return false;
         }
         return true;

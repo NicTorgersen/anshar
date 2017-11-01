@@ -8,6 +8,7 @@ import no.rutebanken.anshar.routes.siri.*;
 import no.rutebanken.anshar.routes.siri.adapters.Mapping;
 import no.rutebanken.anshar.routes.siri.handlers.SiriHandler;
 import no.rutebanken.anshar.routes.siri.transformer.ValueAdapter;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import org.apache.camel.CamelContext;
 import org.apache.camel.CamelContextAware;
 import org.apache.camel.builder.RouteBuilder;
@@ -32,7 +33,7 @@ public class SubscriptionInitializer implements CamelContextAware, ApplicationCo
     private SubscriptionManager subscriptionManager;
 
     @Autowired
-    private MappingAdapterPresets mappingAdapterPresets;
+    private SubscriptionRepository repository;
 
     @Autowired
     @Qualifier("getHealthCheckMap")
@@ -76,15 +77,29 @@ public class SubscriptionInitializer implements CamelContextAware, ApplicationCo
 
         logger.info("Initializing subscriptions for environment: {}", camelConfiguration.getEnvironment());
 
+
         if (subscriptionConfig != null) {
-            List<SubscriptionSetup> subscriptionSetups = subscriptionConfig.getSubscriptions();
-            logger.info("Initializing {} subscriptions", subscriptionSetups.size());
+            List<Subscription> subscriptions = repository.findAll();
+
+            if (subscriptions == null || subscriptions.isEmpty()) {
+                // Initially adding subscriptions in database
+                List<SubscriptionSetup> subscriptionSetups = subscriptionConfig.getSubscriptions();
+                subscriptions = new ArrayList<>();
+                for (SubscriptionSetup subscriptionSetup : subscriptionSetups) {
+                    Subscription subscription = repository.save(createSubscription(subscriptionSetup));
+                    subscriptions.add(subscription);
+                }
+            }
+//            List<SubscriptionSetup> subscriptionSetups = subscriptionConfig.getSubscriptions();
+            logger.info("Initializing {} subscriptions", subscriptions.size());
             Set<String> subscriptionIds = new HashSet<>();
 
             List<SubscriptionSetup> actualSubscriptionSetups = new ArrayList<>();
 
             // Validation and consistency-verification
-            for (SubscriptionSetup subscriptionSetup : subscriptionSetups) {
+            for (Subscription subscription : subscriptions) {
+                SubscriptionSetup subscriptionSetup = createSubscriptionSetup(subscription);
+
                 if (subscriptionSetup.getOverrideHttps() && camelConfiguration.getInboundUrl().startsWith("https://")) {
                     subscriptionSetup.setAddress(camelConfiguration.getInboundUrl().replaceFirst("https:", "http:"));
                 } else {
@@ -110,27 +125,6 @@ public class SubscriptionInitializer implements CamelContextAware, ApplicationCo
                         throw new ServiceConfigurationError("Invalid mappingAdapterId for subscription " + subscriptionSetup);
                     }
                 }
-
-//                for (SubscriptionPreset preset : subscriptionSetup.mappingAdapterPresets) {
-//                    if (preset == NSR) {
-//                        //Add NSR StopPlaceIdMapperAdapters
-//                        if (subscriptionSetup.getIdMappingPrefixes() != null && !subscriptionSetup.getIdMappingPrefixes().isEmpty()) {
-//
-//                            List<ValueAdapter> nsr = mappingAdapterPresets.createNsrIdMappingAdapters(subscriptionSetup.getIdMappingPrefixes());
-//                            if (!subscriptionSetup.getMappingAdapters().containsAll(nsr)) {
-//                                subscriptionSetup.getMappingAdapters().addAll(nsr);
-//                            }
-//                        }
-//
-//                        //Add Chouette route_id, trip_id adapters
-//                        if (subscriptionSetup.getDatasetId() != null && !subscriptionSetup.getDatasetId().isEmpty()) {
-//                            List<ValueAdapter> datasetPrefix = mappingAdapterPresets.createIdPrefixAdapters(subscriptionSetup.getDatasetId());
-//                            if (!subscriptionSetup.getMappingAdapters().containsAll(datasetPrefix)) {
-//                                subscriptionSetup.getMappingAdapters().addAll(datasetPrefix);
-//                            }
-//                        }
-//                    }
-//                }
 
 
                 if (subscriptionSetup.getSubscriptionMode() == SubscriptionSetup.SubscriptionMode.FETCHED_DELIVERY) {
@@ -205,6 +199,82 @@ public class SubscriptionInitializer implements CamelContextAware, ApplicationCo
             logger.error("Subscriptions not configured correctly - no subscriptions will be started");
         }
 
+    }
+
+    private Subscription createSubscription(SubscriptionSetup subscriptionSetup) {
+        Subscription subscription = new Subscription();
+        subscription.setActive(subscriptionSetup.isActive());
+        subscription.setVendor(subscriptionSetup.getVendor());
+        subscription.setAddressFieldName(subscriptionSetup.getAddressFieldName());
+        subscription.setUrlMap(subscriptionSetup.getUrlMap());
+
+        subscription.setSubscriptionType(subscriptionSetup.getSubscriptionType());
+        subscription.setServiceType(subscriptionSetup.getServiceType());
+
+        subscription.setSubscriptionMode(subscriptionSetup.getSubscriptionMode());
+        if (subscriptionSetup.filterMapPresets != null) {
+            subscription.setFilterMapPreset(subscriptionSetup.filterMapPresets);
+        }
+
+        subscription.setHeartbeatInterval(subscriptionSetup.getHeartbeatInterval());
+        subscription.setUpdateInterval(subscriptionSetup.getUpdateInterval());
+        subscription.setPreviewInterval(subscriptionSetup.getPreviewInterval());
+        subscription.setChangeBeforeUpdates(subscriptionSetup.getChangeBeforeUpdates());
+        subscription.setDurationOfSubscription(subscriptionSetup.getDurationOfSubscription());
+        subscription.setOperatorNamespace(subscriptionSetup.getOperatorNamespace());
+
+        subscription.setSubscriptionId(subscriptionSetup.getSubscriptionId());
+        subscription.setVersion(subscriptionSetup.getVersion());
+        subscription.setDatasetId(subscriptionSetup.getDatasetId());
+        subscription.setRequestorRef(subscriptionSetup.getRequestorRef());
+        subscription.setIdMappingPrefixes(subscriptionSetup.getIdMappingPrefixes());
+        subscription.setMappingAdapterId(subscriptionSetup.getMappingAdapterId());
+        subscription.setAddressFieldName(subscriptionSetup.getAddressFieldName());
+        subscription.setSoapenvNamespace(subscriptionSetup.getSoapenvNamespace());
+        subscription.setIncrementalUpdates(subscriptionSetup.getIncrementalUpdates());
+        subscription.setOverrideHttps(subscriptionSetup.getOverrideHttps());
+        subscription.setContentType(subscriptionSetup.getContentType());
+        subscription.setVehicleMonitoringRefValue(subscriptionSetup.getVehicleMonitoringRefValue());
+
+        return subscription;
+    }
+
+    private SubscriptionSetup createSubscriptionSetup(Subscription subscription) {
+        SubscriptionSetup subscriptionSetup = new SubscriptionSetup();
+        subscriptionSetup.setActive(subscription.isActive());
+        subscriptionSetup.setVendor(subscription.getVendor());
+        subscriptionSetup.setAddressFieldName(subscription.getAddressFieldName());
+        subscriptionSetup.setUrlMap(subscription.getUrlMap());
+
+        subscriptionSetup.setSubscriptionType(subscription.getSubscriptionType());
+        subscriptionSetup.setServiceType(subscription.getServiceType());
+
+        subscriptionSetup.setSubscriptionMode(subscription.getSubscriptionMode());
+        if (subscription.getFilterMapPreset() != null) {
+            subscriptionSetup.setFilterPresets(subscription.getFilterMapPreset());
+        }
+
+        subscriptionSetup.setHeartbeatInterval(subscription.getHeartbeatInterval());
+        subscriptionSetup.setUpdateInterval(subscription.getUpdateInterval());
+        subscriptionSetup.setPreviewInterval(subscription.getPreviewInterval());
+        subscriptionSetup.setChangeBeforeUpdates(subscription.getChangeBeforeUpdates());
+        subscriptionSetup.setDurationOfSubscription(subscription.getDurationOfSubscription());
+        subscriptionSetup.setOperatorNamespace(subscription.getOperatorNamespace());
+
+        subscriptionSetup.setSubscriptionId(subscription.getSubscriptionId());
+        subscriptionSetup.setVersion(subscription.getVersion());
+        subscriptionSetup.setDatasetId(subscription.getDatasetId());
+        subscriptionSetup.setRequestorRef(subscription.getRequestorRef());
+        subscriptionSetup.setIdMappingPrefixes(subscription.getIdMappingPrefixes());
+        subscriptionSetup.setMappingAdapterId(subscription.getMappingAdapterId());
+        subscriptionSetup.setAddressFieldName(subscription.getAddressFieldName());
+        subscriptionSetup.setSoapenvNamespace(subscription.getSoapenvNamespace());
+        subscriptionSetup.setIncrementalUpdates(subscription.getIncrementalUpdates());
+        subscriptionSetup.setOverrideHttps(subscription.isOverrideHttps());
+        subscriptionSetup.setContentType(subscription.getContentType());
+        subscriptionSetup.setVehicleMonitoringRefValue(subscription.getVehicleMonitoringRefValue());
+
+        return subscriptionSetup;
     }
 
     private RouteBuilder getRouteBuilder(SubscriptionSetup subscriptionSetup) {
