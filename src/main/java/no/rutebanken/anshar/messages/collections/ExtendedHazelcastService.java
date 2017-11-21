@@ -4,7 +4,6 @@ import com.hazelcast.config.SerializerConfig;
 import com.hazelcast.core.*;
 import com.hazelcast.nio.serialization.ByteArraySerializer;
 import no.rutebanken.anshar.routes.outbound.OutboundSubscriptionSetup;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.rutebanken.hazelcasthelper.service.HazelCastService;
@@ -119,11 +118,6 @@ public class ExtendedHazelcastService extends HazelCastService {
     @Bean
     public IMap<String, Set<String>> getProductionTimetableChangesMap() {
         return hazelcast.getMap("anshar.pt.changes");
-    }
-
-    @Bean
-    public IMap<String,SubscriptionSetup> getSubscriptionsMap() {
-        return hazelcast.getMap("anshar.subscriptions.active");
     }
 
     @Bean

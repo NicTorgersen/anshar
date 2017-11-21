@@ -4,7 +4,7 @@ import no.rutebanken.anshar.routes.siri.processor.RuterDatedVehicleRefPostProces
 import no.rutebanken.anshar.routes.siri.transformer.ValueAdapter;
 import no.rutebanken.anshar.routes.siri.transformer.impl.LeftPaddingAdapter;
 import no.rutebanken.anshar.routes.siri.transformer.impl.RuterSubstringAdapter;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import uk.org.ifopt.siri20.StopPlaceRef;
 import uk.org.siri.siri20.DestinationRef;
 import uk.org.siri.siri20.JourneyPlaceRefStructure;
@@ -18,7 +18,7 @@ public class RuterValueAdapters extends MappingAdapter {
 
 
     @Override
-    public List<ValueAdapter> getValueAdapters(SubscriptionSetup subscriptionSetup) {
+    public List<ValueAdapter> getValueAdapters(Subscription subscription) {
 
         List<ValueAdapter> valueAdapters = new ArrayList<>();
                 valueAdapters.add(new LeftPaddingAdapter(StopPlaceRef.class, 8, '0'));
@@ -27,12 +27,12 @@ public class RuterValueAdapters extends MappingAdapter {
                 valueAdapters.add(new RuterSubstringAdapter(DestinationRef.class, ':', '0', 2));
                 valueAdapters.add(new RuterDatedVehicleRefPostProcessor());
 
-        valueAdapters.addAll(createNsrIdMappingAdapters(subscriptionSetup.getIdMappingPrefixes()));
+        valueAdapters.addAll(createNsrIdMappingAdapters(subscription.getIdMappingPrefixes()));
 
-        if (subscriptionSetup.getDatasetId() != null && !subscriptionSetup.getDatasetId().isEmpty()) {
-            List<ValueAdapter> datasetPrefix = createIdPrefixAdapters(subscriptionSetup.getDatasetId());
-            if (!subscriptionSetup.getMappingAdapters().containsAll(datasetPrefix)) {
-                subscriptionSetup.getMappingAdapters().addAll(datasetPrefix);
+        if (subscription.getDatasetId() != null && !subscription.getDatasetId().isEmpty()) {
+            List<ValueAdapter> datasetPrefix = createIdPrefixAdapters(subscription.getDatasetId());
+            if (!subscription.getMappingAdapters().containsAll(datasetPrefix)) {
+                subscription.getMappingAdapters().addAll(datasetPrefix);
             }
         }
 

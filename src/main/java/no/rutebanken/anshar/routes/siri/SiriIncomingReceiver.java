@@ -3,7 +3,8 @@ package no.rutebanken.anshar.routes.siri;
 import no.rutebanken.anshar.routes.CamelConfiguration;
 import no.rutebanken.anshar.routes.siri.handlers.SiriHandler;
 import no.rutebanken.anshar.subscription.SubscriptionManager;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.enums.ServiceType;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
 import org.apache.camel.builder.RouteBuilder;
@@ -25,6 +26,8 @@ import java.io.PrintStream;
 import java.net.ConnectException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static no.rutebanken.anshar.subscription.SubscriptionHelper.getServiceRequestRouteName;
 
 @Service
 @Configuration
@@ -103,22 +106,22 @@ public class SiriIncomingReceiver extends RouteBuilder {
                                     if (subscriptionId == null || subscriptionId.isEmpty()) {
                                         return false;
                                     }
-                                    SubscriptionSetup subscriptionSetup = subscriptionManager.get(subscriptionId);
+                                    Subscription subscription = subscriptionManager.get(subscriptionId);
 
-                                    if (subscriptionSetup == null) {
+                                    if (subscription == null) {
                                         return false;
                                     }
 
                                     boolean existsAndIsActive = (subscriptionManager.isSubscriptionRegistered(subscriptionId) &&
-                                                subscriptionSetup.isActive());
+                                                subscription.isActive());
 
                                     p.getOut().setHeaders(p.getIn().getHeaders());
 
-                                    if (! "2.0".equals(subscriptionSetup.getVersion())) {
+                                    if (! "2.0".equals(subscription.getVersion())) {
                                         p.getOut().setHeader(TRANSFORM_VERSION, TRANSFORM_VERSION);
                                     }
 
-                                    if (subscriptionSetup.getServiceType() == SubscriptionSetup.ServiceType.SOAP) {
+                                    if (subscription.getServiceType() == ServiceType.SOAP) {
                                         p.getOut().setHeader(TRANSFORM_SOAP, TRANSFORM_SOAP);
                                     }
 
@@ -269,9 +272,9 @@ public class SiriIncomingReceiver extends RouteBuilder {
 
                     String subscriptionId = getSubscriptionIdFromPath(p.getIn().getHeader("CamelHttpPath", String.class));
 
-                    SubscriptionSetup subscription = subscriptionManager.get(subscriptionId);
+                    Subscription subscription = subscriptionManager.get(subscriptionId);
                     if (subscription != null) {
-                        routeName = subscription.getServiceRequestRouteName();
+                        routeName = getServiceRequestRouteName(subscription);
                     }
 
                     p.getOut().setHeader("routename", routeName);

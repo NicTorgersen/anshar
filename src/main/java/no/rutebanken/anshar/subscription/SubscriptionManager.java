@@ -8,6 +8,7 @@ import no.rutebanken.anshar.messages.Situations;
 import no.rutebanken.anshar.messages.VehicleActivities;
 import no.rutebanken.anshar.routes.health.HealthManager;
 import no.rutebanken.anshar.routes.siri.SiriObjectFactory;
+import no.rutebanken.anshar.subscription.enums.SubscriptionMode;
 import no.rutebanken.anshar.subscription.models.Subscription;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -24,7 +25,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -34,9 +35,9 @@ public class SubscriptionManager {
     final int HEALTHCHECK_INTERVAL_FACTOR = 5;
     private Logger logger = LoggerFactory.getLogger(SubscriptionManager.class);
 
-    @Autowired
-    @Qualifier("getSubscriptionsMap")
-    private IMap<String, SubscriptionSetup> subscriptions;
+//    @Autowired
+//    @Qualifier("getSubscriptionsMap")
+//    private IMap<String, SubscriptionSetup> subscriptions;
 
     @Autowired
     SubscriptionRepository repository;
@@ -95,14 +96,13 @@ public class SubscriptionManager {
     @Qualifier("getVehicleChangesMap")
     private IMap<String, Set<String>> vmChanges;
 
-    public void addSubscription(String subscriptionId, SubscriptionSetup setup) {
+    public void addSubscription(Subscription setup) {
 
-        subscriptions.put(subscriptionId, setup);
+        repository.save(setup);
         logger.trace("Added subscription {}", setup);
         if (setup.isActive()) {
-            activatePendingSubscription(subscriptionId);
+            activatePendingSubscription(setup.getSubscriptionId());
         }
-        logStats();
     }
 
     public boolean removeSubscription(String subscriptionId) {
@@ -110,29 +110,28 @@ public class SubscriptionManager {
     }
 
     public boolean removeSubscription(String subscriptionId, boolean force) {
-        SubscriptionSetup setup = subscriptions.remove(subscriptionId);
+        Subscription setup = repository.findBySubscriptionId(subscriptionId);
 
         boolean found = (setup != null);
 
         if (force) {
-            logger.info("Completely deleting subscription by request.");
+            logger.info("Completely deleting subscription-data by request.");
             activatedTimestamp.remove(subscriptionId);
             lastActivity.remove(subscriptionId);
             hitcount.remove(subscriptionId);
             objectCounter.remove(subscriptionId);
-        } else if (found) {
-            setup.setActive(false);
-            addSubscription(subscriptionId, setup);
         }
-
-        logStats();
+        if (found) {
+            setup.setActive(false);
+            repository.save(setup);
+        }
 
         logger.info("Removed subscription {}, found: {}", (setup !=null ? setup.toString():subscriptionId), found);
         return found;
     }
 
     public boolean touchSubscription(String subscriptionId) {
-        SubscriptionSetup setup = subscriptions.get(subscriptionId);
+        Subscription setup = repository.findBySubscriptionId(subscriptionId);
         hit(subscriptionId);
 
         boolean success = (setup != null);
@@ -142,7 +141,6 @@ public class SubscriptionManager {
             lastActivity.put(subscriptionId, Instant.now());
         }
 
-        logStats();
         return success;
     }
 
@@ -154,7 +152,7 @@ public class SubscriptionManager {
      * @return
      */
     public boolean touchSubscription(String subscriptionId, ZonedDateTime serviceStartedTime) {
-        SubscriptionSetup setup = subscriptions.get(subscriptionId);
+        Subscription setup = repository.findBySubscriptionId(subscriptionId);
         if (setup != null && serviceStartedTime != null) {
             Instant lastActivity = this.lastActivity.get(subscriptionId);
             if (lastActivity == null || serviceStartedTime.toInstant().isBefore(lastActivity)) {
@@ -169,14 +167,9 @@ public class SubscriptionManager {
         return false;
     }
 
-    private void logStats() {
-        String stats = "Active subscriptions: " + subscriptions.size();
-        logger.debug(stats);
-    }
+    public Subscription get(String subscriptionId) {
 
-    public SubscriptionSetup get(String subscriptionId) {
-
-        return subscriptions.get(subscriptionId);
+        return repository.findBySubscriptionId(subscriptionId);
     }
 
     private void hit(String subscriptionId) {
@@ -184,9 +177,9 @@ public class SubscriptionManager {
         hitcount.put(subscriptionId, counter+1);
     }
 
-    public void incrementObjectCounter(SubscriptionSetup subscriptionSetup, int size) {
+    public void incrementObjectCounter(Subscription subscription, int size) {
 
-        String subscriptionId = subscriptionSetup.getSubscriptionId();
+        String subscriptionId = subscription.getSubscriptionId();
         if (subscriptionId != null) {
             BigInteger counter = (objectCounter.get(subscriptionId) != null ? objectCounter.get(subscriptionId) : new BigInteger("0"));
             objectCounter.put(subscriptionId, counter.add(BigInteger.valueOf(size)));
@@ -194,31 +187,27 @@ public class SubscriptionManager {
     }
 
     public boolean isActiveSubscription(String subscriptionId) {
-        SubscriptionSetup subscriptionSetup = subscriptions.get(subscriptionId);
-        if (subscriptionSetup != null) {
-            return subscriptionSetup.isActive();
+        Subscription subscription = repository.findBySubscriptionId(subscriptionId);
+        if (subscription != null) {
+            return subscription.isActive();
         }
         return false;
     }
 
     public boolean activatePendingSubscription(String subscriptionId) {
-        SubscriptionSetup subscriptionSetup = subscriptions.get(subscriptionId);
+        Subscription subscription = repository.findBySubscriptionId(subscriptionId);
 
-        if (subscriptionSetup != null) {
-            subscriptionSetup.setActive(true);
-            // Subscriptions are inserted as immutable - need to replace previous value
-            subscriptions.put(subscriptionId, subscriptionSetup);
+        if (subscription != null) {
+            subscription.setActive(true);
+
+            repository.save(subscription);
+
             lastActivity.put(subscriptionId, Instant.now());
             activatedTimestamp.put(subscriptionId, Instant.now());
-            logger.info("Pending subscription {} activated", subscriptions.get(subscriptionId));
+            logger.info("Pending subscription {} activated", repository.findBySubscriptionId(subscriptionId));
+
             if (!dataReceived.containsKey(subscriptionId)) {
                 dataReceived(subscriptionId);
-            }
-
-            Subscription subscription = repository.findBySubscriptionId(subscriptionSetup.getSubscriptionId());
-            if (subscription != null) {
-                subscription.setActive(true);
-                subscription.getActivity().setActivated(Instant.now());
             }
 
             return true;
@@ -241,7 +230,7 @@ public class SubscriptionManager {
 
         logger.trace("SubscriptionId [{}], last activity {}.", subscriptionId, instant);
 
-        SubscriptionSetup activeSubscription = subscriptions.get(subscriptionId);
+        Subscription activeSubscription = repository.findBySubscriptionId(subscriptionId);
         if (activeSubscription != null && activeSubscription.isActive()) {
 
             Duration heartbeatInterval = activeSubscription.getHeartbeatInterval();
@@ -256,7 +245,7 @@ public class SubscriptionManager {
                 return false;
             }
 
-            if (activeSubscription.getSubscriptionMode().equals(SubscriptionSetup.SubscriptionMode.SUBSCRIBE)) {
+            if (activeSubscription.getSubscriptionMode().equals(SubscriptionMode.SUBSCRIBE)) {
                 //Only actual subscriptions have an expiration - NOT request/response-"subscriptions"
 
                 //If active subscription has existed longer than "initial subscription duration" - restart
@@ -275,15 +264,15 @@ public class SubscriptionManager {
     }
 
     public boolean isSubscriptionRegistered(String subscriptionId) {
-
-        return subscriptions.containsKey(subscriptionId);
+        return repository.findBySubscriptionId(subscriptionId) != null;
     }
 
     public JSONObject buildStats() {
         JSONObject result = new JSONObject();
         JSONArray stats = new JSONArray();
-        stats.addAll(subscriptions.keySet().stream()
-                .map(key -> getJsonObject(subscriptions.get(key)))
+        List<Subscription> subscriptions = repository.findAll();
+        stats.addAll(subscriptions.stream()
+                .map(subscription -> getJsonObject(subscription))
                 .filter(json -> json != null)
                 .collect(Collectors.toList()));
 
@@ -307,7 +296,7 @@ public class SubscriptionManager {
         return result;
     }
 
-    private JSONObject getJsonObject(SubscriptionSetup setup) {
+    private JSONObject getJsonObject(Subscription setup) {
         if (setup == null) {
             return null;
         }
@@ -343,50 +332,36 @@ public class SubscriptionManager {
         return "";
     }
 
-    public SubscriptionSetup getSubscriptionById(long internalId) {
-        for (SubscriptionSetup setup : subscriptions.values()) {
-            if (setup.getInternalId() == internalId) {
-                return setup;
-            }
-        }
-        return null;
-    }
-
     public void stopSubscription(String subscriptionId) {
 
-        SubscriptionSetup subscriptionSetup = subscriptions.get(subscriptionId);
-        if (subscriptionSetup != null) {
-            subscriptionSetup.setActive(false);
-            subscriptions.put(subscriptionId, subscriptionSetup);
+        Subscription subscription = repository.findBySubscriptionId(subscriptionId);
+        if (subscription != null) {
+            subscription.setActive(false);
+            repository.save(subscription);
 
-            removeSubscription(subscriptionId);
-            logger.info("Handled request to cancel subscription ", subscriptionSetup);
+            logger.info("Handled request to cancel subscription ", subscription);
         }
     }
 
     public void startSubscription(String subscriptionId) {
-        SubscriptionSetup subscriptionSetup = subscriptions.get(subscriptionId);
-        if (subscriptionSetup != null) {
-            subscriptionSetup.setActive(true);
+        Subscription subscription = repository.findBySubscriptionId(subscriptionId);
+        if (subscription != null) {
+            subscription.setActive(true);
             activatePendingSubscription(subscriptionId);
-            logger.info("Handled request to start subscription ", subscriptionSetup);
+            logger.info("Handled request to start subscription ", subscription);
         }
     }
 
     public Set<String> getAllUnhealthySubscriptions(int allowedInactivitySeconds) {
-        Set<String> subscriptionIds = subscriptions.keySet()
+        List<Subscription> all = repository.findAll();
+        Set<String> unhealthyVendors = all
                 .stream()
-                .filter(subscriptionId -> isActiveSubscription(subscriptionId))
-                .filter(subscriptionId -> !isSubscriptionReceivingData(subscriptionId, allowedInactivitySeconds))
+                .filter(subscription -> isActiveSubscription(subscription.getSubscriptionId()))
+                .filter(subscription -> !isSubscriptionReceivingData(subscription.getSubscriptionId(), allowedInactivitySeconds))
+                .map(subscription -> subscription.getVendor())
                 .collect(Collectors.toSet());
-        if (subscriptionIds != null & !subscriptionIds.isEmpty()) {
-            return subscriptions.getAll(subscriptionIds)
-                    .values()
-                    .stream()
-                    .map(subscriptionSetup -> subscriptionSetup.getVendor())
-                    .collect(Collectors.toSet());
-        }
-        return new HashSet<>();
+
+        return unhealthyVendors;
     }
 
     private boolean isSubscriptionReceivingData(String subscriptionId, long allowedInactivitySeconds) {

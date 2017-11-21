@@ -7,7 +7,8 @@ import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.pool.KryoFactory;
 import com.esotericsoftware.kryo.pool.KryoPool;
 import com.sun.org.apache.xerces.internal.dom.ElementNSImpl;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.enums.SubscriptionType;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import org.apache.commons.lang3.NotImplementedException;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 import org.slf4j.Logger;
@@ -27,6 +28,9 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+
+import static no.rutebanken.anshar.subscription.SubscriptionHelper.buildUrl;
+import static no.rutebanken.anshar.subscription.SubscriptionHelper.getFilterMap;
 
 @Service
 public class SiriObjectFactory {
@@ -77,52 +81,52 @@ public class SiriObjectFactory {
         this.serverStartTime = serverStartTime;
     }
     
-    public static Siri createSubscriptionRequest(SubscriptionSetup subscriptionSetup) {
+    public static Siri createSubscriptionRequest(Subscription subscription) {
         Siri siri = createSiriObject();
 
         SubscriptionRequest request = null;
 
-        if (subscriptionSetup.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE)) {
-            request = createSituationExchangeSubscriptionRequest(subscriptionSetup.getRequestorRef(),subscriptionSetup.getSubscriptionId(),
-                    subscriptionSetup.getHeartbeatInterval(),
-                    subscriptionSetup.buildUrl(),
-                    subscriptionSetup.getDurationOfSubscription(),
-                    subscriptionSetup.getFilterMap(),
-                    subscriptionSetup.getAddressFieldName(),
-                    subscriptionSetup.getIncrementalUpdates(),
-                    subscriptionSetup.getPreviewInterval());
+        if (subscription.getSubscriptionType().equals(SubscriptionType.SITUATION_EXCHANGE)) {
+            request = createSituationExchangeSubscriptionRequest(subscription.getRequestorRef(),subscription.getSubscriptionId(),
+                    subscription.getHeartbeatInterval(),
+                    buildUrl(subscription),
+                    subscription.getDurationOfSubscription(),
+                    getFilterMap(subscription),
+                    subscription.getAddressFieldName(),
+                    subscription.getIncrementalUpdates(),
+                    subscription.getPreviewInterval());
         }
-        if (subscriptionSetup.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING)) {
-            request = createVehicleMonitoringSubscriptionRequest(subscriptionSetup.getRequestorRef(),
-                    subscriptionSetup.getSubscriptionId(),
-                    subscriptionSetup.getHeartbeatInterval(),
-                    subscriptionSetup.buildUrl(),
-                    subscriptionSetup.getDurationOfSubscription(),
-                    subscriptionSetup.getFilterMap(),
-                    subscriptionSetup.getUpdateInterval(),
-                    subscriptionSetup.getChangeBeforeUpdates(),
-                    subscriptionSetup.getAddressFieldName(),
-                    subscriptionSetup.getIncrementalUpdates(),
-                    subscriptionSetup.getVehicleMonitoringRefValue());
+        if (subscription.getSubscriptionType().equals(SubscriptionType.VEHICLE_MONITORING)) {
+            request = createVehicleMonitoringSubscriptionRequest(subscription.getRequestorRef(),
+                    subscription.getSubscriptionId(),
+                    subscription.getHeartbeatInterval(),
+                    buildUrl(subscription),
+                    subscription.getDurationOfSubscription(),
+                    getFilterMap(subscription),
+                    subscription.getUpdateInterval(),
+                    subscription.getChangeBeforeUpdates(),
+                    subscription.getAddressFieldName(),
+                    subscription.getIncrementalUpdates(),
+                    subscription.getVehicleMonitoringRefValue());
         }
-        if (subscriptionSetup.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.ESTIMATED_TIMETABLE)) {
-            request = createEstimatedTimetableSubscriptionRequest(subscriptionSetup.getRequestorRef(),subscriptionSetup.getSubscriptionId(),
-                    subscriptionSetup.getHeartbeatInterval(),
-                    subscriptionSetup.buildUrl(),
-                    subscriptionSetup.getDurationOfSubscription(),
-                    subscriptionSetup.getFilterMap(),
-                    subscriptionSetup.getAddressFieldName(),
-                    subscriptionSetup.getIncrementalUpdates(),
-                    subscriptionSetup.getPreviewInterval(),
-                    subscriptionSetup.getChangeBeforeUpdates());
+        if (subscription.getSubscriptionType().equals(SubscriptionType.ESTIMATED_TIMETABLE)) {
+            request = createEstimatedTimetableSubscriptionRequest(subscription.getRequestorRef(),subscription.getSubscriptionId(),
+                    subscription.getHeartbeatInterval(),
+                    buildUrl(subscription),
+                    subscription.getDurationOfSubscription(),
+                    getFilterMap(subscription),
+                    subscription.getAddressFieldName(),
+                    subscription.getIncrementalUpdates(),
+                    subscription.getPreviewInterval(),
+                    subscription.getChangeBeforeUpdates());
         }
-        if (subscriptionSetup.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.PRODUCTION_TIMETABLE)) {
-            request = createProductionTimetableSubscriptionRequest(subscriptionSetup.getRequestorRef(), subscriptionSetup.getSubscriptionId(),
-                    subscriptionSetup.getHeartbeatInterval(),
-                    subscriptionSetup.buildUrl(),
-                    subscriptionSetup.getDurationOfSubscription(),
-                    subscriptionSetup.getFilterMap(),
-                    subscriptionSetup.getAddressFieldName());
+        if (subscription.getSubscriptionType().equals(SubscriptionType.PRODUCTION_TIMETABLE)) {
+            request = createProductionTimetableSubscriptionRequest(subscription.getRequestorRef(), subscription.getSubscriptionId(),
+                    subscription.getHeartbeatInterval(),
+                    buildUrl(subscription),
+                    subscription.getDurationOfSubscription(),
+                    getFilterMap(subscription),
+                    subscription.getAddressFieldName());
         }
         siri.setSubscriptionRequest(request);
 
@@ -130,25 +134,25 @@ public class SiriObjectFactory {
     }
 
 
-    public static Siri createServiceRequest(SubscriptionSetup subscriptionSetup) {
+    public static Siri createServiceRequest(Subscription subscription) {
         Siri siri = createSiriObject();
 
         ServiceRequest request = new ServiceRequest();
         request.setRequestTimestamp(ZonedDateTime.now());
-        request.setRequestorRef(createRequestorRef(subscriptionSetup.getRequestorRef()));
+        request.setRequestorRef(createRequestorRef(subscription.getRequestorRef()));
 
-        if (subscriptionSetup.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE)) {
-            request.getSituationExchangeRequests().add(createSituationExchangeRequestStructure(subscriptionSetup.getPreviewInterval()));
+        if (subscription.getSubscriptionType().equals(SubscriptionType.SITUATION_EXCHANGE)) {
+            request.getSituationExchangeRequests().add(createSituationExchangeRequestStructure(subscription.getPreviewInterval()));
 
         }
-        if (subscriptionSetup.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING)) {
+        if (subscription.getSubscriptionType().equals(SubscriptionType.VEHICLE_MONITORING)) {
             request.getVehicleMonitoringRequests().add(createVehicleMonitoringRequestStructure());
         }
-        if (subscriptionSetup.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.ESTIMATED_TIMETABLE)) {
-            request.getEstimatedTimetableRequests().add(createEstimatedTimetableRequestStructure(subscriptionSetup.getPreviewInterval()));
+        if (subscription.getSubscriptionType().equals(SubscriptionType.ESTIMATED_TIMETABLE)) {
+            request.getEstimatedTimetableRequests().add(createEstimatedTimetableRequestStructure(subscription.getPreviewInterval()));
         }
 
-        if (subscriptionSetup.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.PRODUCTION_TIMETABLE)) {
+        if (subscription.getSubscriptionType().equals(SubscriptionType.PRODUCTION_TIMETABLE)) {
             request.getProductionTimetableRequests().add(createProductionTimetableRequestStructure());
         }
 
@@ -158,12 +162,12 @@ public class SiriObjectFactory {
     }
 
 
-    public static Siri createDataSupplyRequest(SubscriptionSetup subscriptionSetup, Boolean allData) {
+    public static Siri createDataSupplyRequest(Subscription subscription, Boolean allData) {
         Siri siri = createSiriObject();
 
         DataSupplyRequestStructure request = new DataSupplyRequestStructure();
         request.setRequestTimestamp(ZonedDateTime.now());
-        request.setConsumerRef(createRequestorRef(subscriptionSetup.getRequestorRef()));
+        request.setConsumerRef(createRequestorRef(subscription.getRequestorRef()));
         request.setAllData(allData);
 
         siri.setDataSupplyRequest(request);
@@ -171,13 +175,13 @@ public class SiriObjectFactory {
         return siri;
     }
 
-    public static Siri createCheckStatusRequest(SubscriptionSetup subscriptionSetup) {
+    public static Siri createCheckStatusRequest(Subscription subscription) {
         Siri siri = createSiriObject();
 
         CheckStatusRequestStructure statusRequest = new CheckStatusRequestStructure();
         statusRequest.setRequestTimestamp(ZonedDateTime.now());
         statusRequest.setMessageIdentifier(createMessageIdentifier());
-        statusRequest.setRequestorRef(createRequestorRef(subscriptionSetup.getRequestorRef()));
+        statusRequest.setRequestorRef(createRequestorRef(subscription.getRequestorRef()));
         siri.setCheckStatusRequest(statusRequest);
 
         return siri;
@@ -394,11 +398,11 @@ public class SiriObjectFactory {
         return request;
     }
 
-    public static Siri createTerminateSubscriptionRequest(SubscriptionSetup subscriptionSetup) {
-        if (subscriptionSetup == null) {
+    public static Siri createTerminateSubscriptionRequest(Subscription subscription) {
+        if (subscription == null) {
             return null;
         }
-        return createTerminateSubscriptionRequest(subscriptionSetup.getSubscriptionId(), createRequestorRef(subscriptionSetup.getRequestorRef()));
+        return createTerminateSubscriptionRequest(subscription.getSubscriptionId(), createRequestorRef(subscription.getRequestorRef()));
     }
 
     private static Siri createTerminateSubscriptionRequest(String subscriptionId, RequestorRef requestorRef) {

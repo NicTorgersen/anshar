@@ -5,7 +5,7 @@ import no.rutebanken.anshar.routes.CamelConfiguration;
 import no.rutebanken.anshar.routes.siri.handlers.SiriHandler;
 import no.rutebanken.anshar.subscription.RequestType;
 import no.rutebanken.anshar.subscription.SubscriptionManager;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import org.apache.camel.Exchange;
 import org.apache.camel.ExchangePattern;
 import org.apache.camel.http.common.HttpMethods;
@@ -17,6 +17,7 @@ import java.net.ConnectException;
 import java.util.Map;
 
 import static no.rutebanken.anshar.routes.siri.SiriRequestFactory.getCamelUrl;
+import static no.rutebanken.anshar.subscription.SubscriptionHelper.*;
 
 public class Siri20ToSiriRS20Subscription extends SiriSubscriptionRouteBuilder {
 
@@ -24,27 +25,27 @@ public class Siri20ToSiriRS20Subscription extends SiriSubscriptionRouteBuilder {
 
     private SiriHandler handler;
 
-    public Siri20ToSiriRS20Subscription(CamelConfiguration config, SiriHandler handler, SubscriptionSetup subscriptionSetup, SubscriptionManager subscriptionManager) {
+    public Siri20ToSiriRS20Subscription(CamelConfiguration config, SiriHandler handler, Subscription subscription, SubscriptionManager subscriptionManager) {
         super(config, subscriptionManager);
         this.handler = handler;
-        this.subscriptionSetup = subscriptionSetup;
+        this.subscription = subscription;
     }
 
     @Override
     public void configure() throws Exception {
 
-        Map<RequestType, String> urlMap = subscriptionSetup.getUrlMap();
-        SiriRequestFactory helper = new SiriRequestFactory(subscriptionSetup);
+        Map<RequestType, String> urlMap = subscription.getUrlMap();
+        SiriRequestFactory helper = new SiriRequestFactory(subscription);
 
         //Start subscription
-        from("direct:" + subscriptionSetup.getStartSubscriptionRouteName())
-                .log("Starting subscription " + subscriptionSetup.toString())
+        from("direct:" + getStartSubscriptionRouteName(subscription))
+                .log("Starting subscription " + subscription.toString())
                 .bean(helper, "createSiriSubscriptionRequest", false)
                 .marshal(SiriDataFormatHelper.getSiriJaxbDataformat())
                 .setExchangePattern(ExchangePattern.InOut) // Make sure we wait for a response
-                .setHeader("operatorNamespace", constant(subscriptionSetup.getOperatorNamespace())) // Need to make SOAP request with endpoint specific element namespace
+                .setHeader("operatorNamespace", constant(subscription.getOperatorNamespace())) // Need to make SOAP request with endpoint specific element namespace
                 .removeHeaders("CamelHttp*") // Remove any incoming HTTP headers as they interfere with the outgoing definition
-                .setHeader(Exchange.CONTENT_TYPE, constant(subscriptionSetup.getContentType())) // Necessary when talking to Microsoft web services
+                .setHeader(Exchange.CONTENT_TYPE, constant(subscription.getContentType())) // Necessary when talking to Microsoft web services
                 .setHeader(Exchange.HTTP_METHOD, constant(HttpMethods.POST))
                 .to("log:sent request:" + getClass().getSimpleName() + "?showAll=true&multiline=true")
                 .doTry()
@@ -55,68 +56,68 @@ public class Siri20ToSiriRS20Subscription extends SiriSubscriptionRouteBuilder {
                         String responseCode = p.getIn().getHeader("CamelHttpResponseCode", String.class);
                         InputStream body = p.getIn().getBody(InputStream.class);
                         if (body != null && body.available() > 0) {
-                            handler.handleIncomingSiri(subscriptionSetup.getSubscriptionId(), body);
+                            handler.handleIncomingSiri(subscription.getSubscriptionId(), body);
                         } else if ("200".equals(responseCode)) {
                             logger.info("SubscriptionResponse OK - Async response performs actual registration");
-                            subscriptionManager.activatePendingSubscription(subscriptionSetup.getSubscriptionId());
+                            subscriptionManager.activatePendingSubscription(subscription.getSubscriptionId());
                         } else {
                             hasBeenStarted = false;
                         }
 
                     })
                 .doCatch(ConnectException.class)
-                    .log("Caught ConnectException - subscription not started - will try again: "+ subscriptionSetup.toString())
+                    .log("Caught ConnectException - subscription not started - will try again: "+ subscription.toString())
                     .process(p -> {
                         p.getOut().setBody(null);
                     })
                 .endDoTry()
-                .routeId("start.rs.20.subscription."+subscriptionSetup.getVendor())
+                .routeId("start.rs.20.subscription."+subscription.getVendor())
         ;
 
         //Check status-request checks the server status - NOT the subscription
-        from("direct:" + subscriptionSetup.getCheckStatusRouteName())
+        from("direct:" + getCheckStatusRouteName(subscription))
         		.bean(helper, "createSiriCheckStatusRequest", false)
         		.marshal(SiriDataFormatHelper.getSiriJaxbDataformat())
                 .removeHeaders("CamelHttp*") // Remove any incoming HTTP headers as they interfere with the outgoing definition
-                .setHeader(Exchange.CONTENT_TYPE, constant(subscriptionSetup.getContentType())) // Necessary when talking to Microsoft web services
+                .setHeader(Exchange.CONTENT_TYPE, constant(subscription.getContentType())) // Necessary when talking to Microsoft web services
                 .setHeader(Exchange.HTTP_METHOD, constant(HttpMethods.POST))
                 .to(getCamelUrl(urlMap.get(RequestType.CHECK_STATUS), getTimeout()))
                 .process(p -> {
 
                     String responseCode = p.getIn().getHeader("CamelHttpResponseCode", String.class);
                     if ("200" .equals(responseCode)) {
-                        logger.trace("CheckStatus OK - Remote service is up [{}]", subscriptionSetup.buildUrl());
+                        logger.trace("CheckStatus OK - Remote service is up [{}]", buildUrl(subscription));
                         InputStream body = p.getIn().getBody(InputStream.class);
                         if (body != null && body.available() > 0) {
-                            handler.handleIncomingSiri(subscriptionSetup.getSubscriptionId(), body);
+                            handler.handleIncomingSiri(subscription.getSubscriptionId(), body);
                         }
                     } else {
-                        logger.info("CheckStatus NOT OK - Remote service is down [{}]", subscriptionSetup.buildUrl());
+                        logger.info("CheckStatus NOT OK - Remote service is down [{}]", buildUrl(subscription));
                     }
 
                 })
-                .routeId("check.status.rs.20.subscription."+subscriptionSetup.getVendor())
+                .routeId("check.status.rs.20.subscription."+subscription.getVendor())
         ;
 
         //Cancel subscription
-        from("direct:" + subscriptionSetup.getCancelSubscriptionRouteName())
-                .log("Cancelling subscription " + subscriptionSetup.toString())
+        from("direct:" + getCancelSubscriptionRouteName(subscription))
+                .log("Cancelling subscription " + subscription.toString())
                 .bean(helper, "createSiriTerminateSubscriptionRequest", false)
                 .marshal(SiriDataFormatHelper.getSiriJaxbDataformat())
                 .setExchangePattern(ExchangePattern.InOut) // Make sure we wait for a response
                 .setProperty(Exchange.LOG_DEBUG_BODY_STREAMS, constant("true"))
                 .removeHeaders("CamelHttp*") // Remove any incoming HTTP headers as they interfere with the outgoing definition
-                .setHeader(Exchange.CONTENT_TYPE, constant(subscriptionSetup.getContentType())) // Necessary when talking to Microsoft web services
+                .setHeader(Exchange.CONTENT_TYPE, constant(subscription.getContentType())) // Necessary when talking to Microsoft web services
                 .setHeader(Exchange.HTTP_METHOD, constant(HttpMethods.POST))
                 .to(getCamelUrl(urlMap.get(RequestType.DELETE_SUBSCRIPTION), getTimeout()))
                 .to("log:received response:" + getClass().getSimpleName() + "?showAll=true&multiline=true")
                 .process(p -> {
                     InputStream body = p.getIn().getBody(InputStream.class);
                     if (body != null && body.available() >0) {
-                        handler.handleIncomingSiri(subscriptionSetup.getSubscriptionId(), body);
+                        handler.handleIncomingSiri(subscription.getSubscriptionId(), body);
                     }
                 })
-                .routeId("cancel.rs.20.subscription."+subscriptionSetup.getVendor())
+                .routeId("cancel.rs.20.subscription."+subscription.getVendor())
         ;
 
         initTriggerRoutes();

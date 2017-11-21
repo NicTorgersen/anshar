@@ -2,8 +2,12 @@ package no.rutebanken.anshar.siri.handler;
 
 import no.rutebanken.anshar.App;
 import no.rutebanken.anshar.routes.siri.handlers.SiriHandler;
+import no.rutebanken.anshar.routes.siri.transformer.ValueAdapter;
 import no.rutebanken.anshar.subscription.SubscriptionManager;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.enums.ServiceType;
+import no.rutebanken.anshar.subscription.enums.SubscriptionMode;
+import no.rutebanken.anshar.subscription.enums.SubscriptionType;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,7 +16,6 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import uk.org.siri.siri20.Siri;
 
 import javax.xml.bind.JAXBException;
-
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -52,8 +55,8 @@ public class SiriHandlerTest {
                 "</siri:Siri>\n";
 
         try {
-            SubscriptionSetup sxSubscription = getSxSubscription();
-            subscriptionManager.addSubscription(sxSubscription.getSubscriptionId(), sxSubscription);
+            Subscription sxSubscription = getSxSubscription();
+            subscriptionManager.addSubscription(sxSubscription);
             Siri siri = handler.handleIncomingSiri(sxSubscription.getSubscriptionId(),new ByteArrayInputStream(xml.getBytes()));
         } catch (Throwable t) {
             fail("Handling empty response caused exception");
@@ -82,8 +85,8 @@ public class SiriHandlerTest {
                 "</siri:Siri>\n";
 
         try {
-            SubscriptionSetup etSubscription = getEtSubscription();
-            subscriptionManager.addSubscription(etSubscription.getSubscriptionId(), etSubscription);
+            Subscription etSubscription = getEtSubscription();
+            subscriptionManager.addSubscription(etSubscription);
             handler.handleIncomingSiri(etSubscription.getSubscriptionId(), new ByteArrayInputStream(xml.getBytes()));
         } catch (Throwable t) {
             fail("Handling empty response caused exception");
@@ -111,8 +114,8 @@ public class SiriHandlerTest {
                 "  </siril:ServiceDelivery>\n" +
                 "</siri:Siri>\n";
         try {
-            SubscriptionSetup vmSubscription = getVmSubscription();
-            subscriptionManager.addSubscription(vmSubscription.getSubscriptionId(), vmSubscription);
+            Subscription vmSubscription = getVmSubscription();
+            subscriptionManager.addSubscription(vmSubscription);
             handler.handleIncomingSiri(vmSubscription.getSubscriptionId(), new ByteArrayInputStream(xml.getBytes()));
         } catch (Throwable t) {
             fail("Handling empty response caused exception");
@@ -140,8 +143,8 @@ public class SiriHandlerTest {
                 "  </siril:ServiceDelivery>\n" +
                 "</siri:Siri>\n";
         try {
-            SubscriptionSetup ptSubscription = getPtSubscription();
-            subscriptionManager.addSubscription(ptSubscription.getSubscriptionId(), ptSubscription);
+            Subscription ptSubscription = getPtSubscription();
+            subscriptionManager.addSubscription(ptSubscription);
             handler.handleIncomingSiri(ptSubscription.getSubscriptionId(), new ByteArrayInputStream(xml.getBytes()));
         } catch (Throwable t) {
             fail("Handling empty response caused exception");
@@ -150,48 +153,48 @@ public class SiriHandlerTest {
 
 
 
-    private SubscriptionSetup getSxSubscription() {
-        SubscriptionSetup.SubscriptionType subscriptionType = SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE;
-        SubscriptionSetup setup = getSubscriptionSetup(subscriptionType);
+    private Subscription getSxSubscription() {
+        SubscriptionType subscriptionType = SubscriptionType.SITUATION_EXCHANGE;
+        Subscription setup = getSubscriptionSetup(subscriptionType);
         return setup;
     }
 
-    private SubscriptionSetup getVmSubscription() {
-        SubscriptionSetup setup = getSubscriptionSetup(SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING);
+    private Subscription getVmSubscription() {
+        Subscription setup = getSubscriptionSetup(SubscriptionType.VEHICLE_MONITORING);
         return setup;
     }
 
-    private SubscriptionSetup getEtSubscription() {
-        SubscriptionSetup setup = getSubscriptionSetup(SubscriptionSetup.SubscriptionType.ESTIMATED_TIMETABLE);
+    private Subscription getEtSubscription() {
+        Subscription setup = getSubscriptionSetup(SubscriptionType.ESTIMATED_TIMETABLE);
         return setup;
     }
 
-    private SubscriptionSetup getPtSubscription() {
-        SubscriptionSetup setup = getSubscriptionSetup(SubscriptionSetup.SubscriptionType.PRODUCTION_TIMETABLE);
+    private Subscription getPtSubscription() {
+        Subscription setup = getSubscriptionSetup(SubscriptionType.PRODUCTION_TIMETABLE);
         return setup;
     }
 
-    private SubscriptionSetup getSubscriptionSetup(SubscriptionSetup.SubscriptionType type) {
-        SubscriptionSetup sub = new SubscriptionSetup(
-                type,
-                SubscriptionSetup.SubscriptionMode.SUBSCRIBE,
-                "http://localhost",
-                Duration.ofMinutes(1),
-                Duration.ofSeconds(1),
-                "http://www.kolumbus.no/siri",
-                new HashMap<>(),
-                "1.4",
-                "SwarcoMizar",
-                "tst",
-                SubscriptionSetup.ServiceType.SOAP,
-                new ArrayList<>(),
-                new HashMap<>(),
-                new ArrayList<>(),
-                UUID.randomUUID().toString(),
-                "RutebankenDEV",
-                Duration.ofSeconds(600),
-                true
-        );
+    private Subscription getSubscriptionSetup(SubscriptionType type) {
+        Subscription sub = new Subscription();
+
+        sub.setSubscriptionType(type);
+        sub.setSubscriptionMode(SubscriptionMode.SUBSCRIBE);
+        sub.setAddress("http://localhost");
+        sub.setHeartbeatInterval( Duration.ofMinutes(1));
+        sub.setUpdateInterval(Duration.ofSeconds(1));
+        sub.setOperatorNamespace("http://www.kolumbus.no/siri");
+        sub.setUrlMap(new HashMap<>());
+        sub.setVersion("1.4");
+        sub.setVendor("SwarcoMizar");
+        sub.setDatasetId("tst");
+        sub.setServiceType(ServiceType.SOAP);
+        sub.setMappingAdapters(new ArrayList<ValueAdapter>());
+        sub.setFilterMapPreset(null);
+        sub.setIdMappingPrefixes(new ArrayList<String>());
+        sub.setSubscriptionId(UUID.randomUUID().toString());
+        sub.setRequestorRef("RutebankenDEV");
+        sub.setDurationOfSubscription(Duration.ofSeconds(600));
+        sub.setActive(true);
         return sub;
     }
 }

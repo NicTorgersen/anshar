@@ -31,7 +31,7 @@ public class HealthManagerTest {
     @Ignore
     public void testShutDownDiscovered() {
         assertTrue(healthManager.isHazelcastAlive());
-        extendedHazelcastService.shutdown();
+//        extendedHazelcastService.shutdown();
         assertFalse(healthManager.isHazelcastAlive());
     }
 }

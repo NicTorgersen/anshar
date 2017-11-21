@@ -12,13 +12,13 @@ import java.util.List;
 @Configuration
 public class SubscriptionConfig {
 
-    private List<SubscriptionSetup> subscriptions;
+    private List<YamlSubscriptionSetup> subscriptions;
 
-    public List<SubscriptionSetup> getSubscriptions() {
+    public List<YamlSubscriptionSetup> getSubscriptions() {
         return subscriptions;
     }
 
-    public void setSubscriptions(List<SubscriptionSetup> subscriptions) {
+    public void setSubscriptions(List<YamlSubscriptionSetup> subscriptions) {
         this.subscriptions = subscriptions;
     }
 }

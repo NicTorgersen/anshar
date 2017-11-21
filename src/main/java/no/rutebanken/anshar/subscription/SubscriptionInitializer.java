@@ -8,6 +8,9 @@ import no.rutebanken.anshar.routes.siri.*;
 import no.rutebanken.anshar.routes.siri.adapters.Mapping;
 import no.rutebanken.anshar.routes.siri.handlers.SiriHandler;
 import no.rutebanken.anshar.routes.siri.transformer.ValueAdapter;
+import no.rutebanken.anshar.subscription.enums.ServiceType;
+import no.rutebanken.anshar.subscription.enums.SubscriptionMode;
+import no.rutebanken.anshar.subscription.enums.SubscriptionType;
 import no.rutebanken.anshar.subscription.models.Subscription;
 import org.apache.camel.CamelContext;
 import org.apache.camel.CamelContextAware;
@@ -83,104 +86,84 @@ public class SubscriptionInitializer implements CamelContextAware, ApplicationCo
 
             if (subscriptions == null || subscriptions.isEmpty()) {
                 // Initially adding subscriptions in database
-                List<SubscriptionSetup> subscriptionSetups = subscriptionConfig.getSubscriptions();
+                List<YamlSubscriptionSetup> yamlSubscriptions = subscriptionConfig.getSubscriptions();
                 subscriptions = new ArrayList<>();
-                for (SubscriptionSetup subscriptionSetup : subscriptionSetups) {
-                    Subscription subscription = repository.save(createSubscription(subscriptionSetup));
+                for (YamlSubscriptionSetup ymlSubscription : yamlSubscriptions) {
+
+                    if (ymlSubscription.getOverrideHttps() && camelConfiguration.getInboundUrl().startsWith("https://")) {
+                        ymlSubscription.setAddress(camelConfiguration.getInboundUrl().replaceFirst("https:", "http:"));
+                    } else {
+                        ymlSubscription.setAddress(camelConfiguration.getInboundUrl());
+                    }
+                    Subscription subscription = repository.save(createSubscription(ymlSubscription));
                     subscriptions.add(subscription);
                 }
             }
-//            List<SubscriptionSetup> subscriptionSetups = subscriptionConfig.getSubscriptions();
+//            List<SubscriptionSetup> subscriptions = subscriptionConfig.getSubscriptions();
             logger.info("Initializing {} subscriptions", subscriptions.size());
             Set<String> subscriptionIds = new HashSet<>();
 
-            List<SubscriptionSetup> actualSubscriptionSetups = new ArrayList<>();
+            List<Subscription> actualSubscriptionSetups = new ArrayList<>();
 
             // Validation and consistency-verification
             for (Subscription subscription : subscriptions) {
-                SubscriptionSetup subscriptionSetup = createSubscriptionSetup(subscription);
 
-                if (subscriptionSetup.getOverrideHttps() && camelConfiguration.getInboundUrl().startsWith("https://")) {
-                    subscriptionSetup.setAddress(camelConfiguration.getInboundUrl().replaceFirst("https:", "http:"));
+                if (subscription.isOverrideHttps() && camelConfiguration.getInboundUrl().startsWith("https://")) {
+                    subscription.setAddress(camelConfiguration.getInboundUrl().replaceFirst("https:", "http:"));
                 } else {
-                    subscriptionSetup.setAddress(camelConfiguration.getInboundUrl());
+                    subscription.setAddress(camelConfiguration.getInboundUrl());
                 }
 
-                if (!isValid(subscriptionSetup)) {
-                    throw new ServiceConfigurationError("Configuration is not valid for subscription " + subscriptionSetup);
+                if (!isValid(subscription)) {
+                    throw new ServiceConfigurationError("Configuration is not valid for subscription " + subscription);
                 }
 
-                if (subscriptionIds.contains(subscriptionSetup.getSubscriptionId())) {
+                if (subscriptionIds.contains(subscription.getSubscriptionId())) {
                     //Verify subscriptionId-uniqueness
-                    throw new ServiceConfigurationError("SubscriptionIds are NOT unique for ID="+subscriptionSetup.getSubscriptionId());
+                    throw new ServiceConfigurationError("SubscriptionIds are NOT unique for ID="+subscription.getSubscriptionId());
                 }
 
 
-                if (mappingAdaptersById.containsKey(subscriptionSetup.getMappingAdapterId())) {
-                    Class adapterClass = mappingAdaptersById.get(subscriptionSetup.getMappingAdapterId());
+                if (mappingAdaptersById.containsKey(subscription.getMappingAdapterId())) {
+                    Class adapterClass = mappingAdaptersById.get(subscription.getMappingAdapterId());
                     try {
-                        List<ValueAdapter> valueAdapters = (List<ValueAdapter>) adapterClass.getMethod("getValueAdapters", SubscriptionSetup.class).invoke(adapterClass.newInstance(), subscriptionSetup);
-                        subscriptionSetup.getMappingAdapters().addAll(valueAdapters);
+                        List<ValueAdapter> valueAdapters = (List<ValueAdapter>) adapterClass.getMethod("getValueAdapters", Subscription.class).invoke(adapterClass.newInstance(), subscription);
+                        subscription.getMappingAdapters().addAll(valueAdapters);
                     } catch (Exception e) {
-                        throw new ServiceConfigurationError("Invalid mappingAdapterId for subscription " + subscriptionSetup);
+                        throw new ServiceConfigurationError("Invalid mappingAdapterId for subscription " + subscription);
                     }
                 }
 
 
-                if (subscriptionSetup.getSubscriptionMode() == SubscriptionSetup.SubscriptionMode.FETCHED_DELIVERY) {
+                if (subscription.getSubscriptionMode() == SubscriptionMode.FETCHED_DELIVERY) {
 
                     //Fetched delivery needs both subscribe-route and ServiceRequest-route
-                    String url = subscriptionSetup.getUrlMap().get(RequestType.SUBSCRIBE);
+                    String url = subscription.getUrlMap().get(RequestType.SUBSCRIBE);
 
-                    subscriptionSetup.getUrlMap().putIfAbsent(RequestType.GET_ESTIMATED_TIMETABLE, url);
-                    subscriptionSetup.getUrlMap().putIfAbsent(RequestType.GET_VEHICLE_MONITORING, url);
-                    subscriptionSetup.getUrlMap().putIfAbsent(RequestType.GET_SITUATION_EXCHANGE, url);
+                    subscription.getUrlMap().putIfAbsent(RequestType.GET_ESTIMATED_TIMETABLE, url);
+                    subscription.getUrlMap().putIfAbsent(RequestType.GET_VEHICLE_MONITORING, url);
+                    subscription.getUrlMap().putIfAbsent(RequestType.GET_SITUATION_EXCHANGE, url);
                 }
 
-                SubscriptionSetup existingSubscription = subscriptionManager.getSubscriptionById(subscriptionSetup.getInternalId());
-
-                if (existingSubscription != null) {
-                    if (!existingSubscription.equals(subscriptionSetup)) {
-                        logger.info("Subscription with internalId={} is updated - reinitializing. {}", subscriptionSetup.getInternalId(), subscriptionSetup);
-
-                        subscriptionSetup.setSubscriptionId(existingSubscription.getSubscriptionId());
-
-                        // Keeping subscription active/inactive
-                        subscriptionSetup.setActive(existingSubscription.isActive());
-                        subscriptionManager.addSubscription(existingSubscription.getSubscriptionId(), subscriptionSetup);
-
-                        if (existingSubscription.isActive()) {
-                            subscriptionManager.activatePendingSubscription(existingSubscription.getSubscriptionId());
-                        }
-
-                        actualSubscriptionSetups.add(subscriptionSetup);
-                        subscriptionIds.add(subscriptionSetup.getSubscriptionId());
-                    } else {
-                        logger.info("Subscription with internalId={} already registered - keep existing. {}", subscriptionSetup.getInternalId(), subscriptionSetup);
-                        actualSubscriptionSetups.add(existingSubscription);
-                        subscriptionIds.add(existingSubscription.getSubscriptionId());
-                    }
-                } else {
-                    actualSubscriptionSetups.add(subscriptionSetup);
-                    subscriptionIds.add(subscriptionSetup.getSubscriptionId());
-                }
+                actualSubscriptionSetups.add(subscription);
+                subscriptionIds.add(subscription.getSubscriptionId());
 
             }
 
-            for (SubscriptionSetup subscriptionSetup : actualSubscriptionSetups) {
+            for (Subscription subscription : actualSubscriptionSetups) {
 
                 try {
-                    if (subscriptionSetup.getSubscriptionMode() == SubscriptionSetup.SubscriptionMode.FETCHED_DELIVERY) {
+                    if (subscription.getSubscriptionMode() == SubscriptionMode.FETCHED_DELIVERY) {
 
-                        subscriptionSetup.setSubscriptionMode(SubscriptionSetup.SubscriptionMode.SUBSCRIBE);
-                        camelContext.addRoutes(getRouteBuilder(subscriptionSetup));
+                        subscription.setSubscriptionMode(SubscriptionMode.SUBSCRIBE);
+                        camelContext.addRoutes(getRouteBuilder(subscription));
 
-                        subscriptionSetup.setSubscriptionMode(SubscriptionSetup.SubscriptionMode.FETCHED_DELIVERY);
-                        camelContext.addRoutes(getRouteBuilder(subscriptionSetup));
+                        subscription.setSubscriptionMode(SubscriptionMode.FETCHED_DELIVERY);
+                        camelContext.addRoutes(getRouteBuilder(subscription));
 
                     } else {
 
-                        RouteBuilder routeBuilder = getRouteBuilder(subscriptionSetup);
+                        RouteBuilder routeBuilder = getRouteBuilder(subscription);
                         //Adding all routes to current context
                         camelContext.addRoutes(routeBuilder);
                     }
@@ -190,9 +173,9 @@ public class SubscriptionInitializer implements CamelContextAware, ApplicationCo
                 }
             }
 
-            for (SubscriptionSetup subscriptionSetup : actualSubscriptionSetups) {
-                if (!subscriptionManager.isSubscriptionRegistered(subscriptionSetup.getSubscriptionId())) {
-                    subscriptionManager.addSubscription(subscriptionSetup.getSubscriptionId(), subscriptionSetup);
+            for (Subscription subscription : actualSubscriptionSetups) {
+                if (!subscriptionManager.isSubscriptionRegistered(subscription.getSubscriptionId())) {
+                    subscriptionManager.addSubscription(subscription);
                 }
             }
         } else {
@@ -201,109 +184,71 @@ public class SubscriptionInitializer implements CamelContextAware, ApplicationCo
 
     }
 
-    private Subscription createSubscription(SubscriptionSetup subscriptionSetup) {
+    private Subscription createSubscription(YamlSubscriptionSetup ymlSubscription) {
         Subscription subscription = new Subscription();
-        subscription.setActive(subscriptionSetup.isActive());
-        subscription.setVendor(subscriptionSetup.getVendor());
-        subscription.setAddressFieldName(subscriptionSetup.getAddressFieldName());
-        subscription.setUrlMap(subscriptionSetup.getUrlMap());
+        subscription.setActive(ymlSubscription.isActive());
+        subscription.setVendor(ymlSubscription.getVendor());
+        subscription.setAddressFieldName(ymlSubscription.getAddressFieldName());
+        subscription.setUrlMap(ymlSubscription.getUrlMap());
 
-        subscription.setSubscriptionType(subscriptionSetup.getSubscriptionType());
-        subscription.setServiceType(subscriptionSetup.getServiceType());
+        subscription.setSubscriptionType(ymlSubscription.getSubscriptionType());
+        subscription.setServiceType(ymlSubscription.getServiceType());
 
-        subscription.setSubscriptionMode(subscriptionSetup.getSubscriptionMode());
-        if (subscriptionSetup.filterMapPresets != null) {
-            subscription.setFilterMapPreset(subscriptionSetup.filterMapPresets);
+        subscription.setSubscriptionMode(ymlSubscription.getSubscriptionMode());
+        if (ymlSubscription.filterMapPresets != null) {
+            subscription.setFilterMapPreset(ymlSubscription.filterMapPresets);
         }
 
-        subscription.setHeartbeatInterval(subscriptionSetup.getHeartbeatInterval());
-        subscription.setUpdateInterval(subscriptionSetup.getUpdateInterval());
-        subscription.setPreviewInterval(subscriptionSetup.getPreviewInterval());
-        subscription.setChangeBeforeUpdates(subscriptionSetup.getChangeBeforeUpdates());
-        subscription.setDurationOfSubscription(subscriptionSetup.getDurationOfSubscription());
-        subscription.setOperatorNamespace(subscriptionSetup.getOperatorNamespace());
+        subscription.setHeartbeatInterval(ymlSubscription.getHeartbeatInterval());
+        subscription.setUpdateInterval(ymlSubscription.getUpdateInterval());
+        subscription.setPreviewInterval(ymlSubscription.getPreviewInterval());
+        subscription.setChangeBeforeUpdates(ymlSubscription.getChangeBeforeUpdates());
+        subscription.setDurationOfSubscription(ymlSubscription.getDurationOfSubscription());
+        subscription.setOperatorNamespace(ymlSubscription.getOperatorNamespace());
 
-        subscription.setSubscriptionId(subscriptionSetup.getSubscriptionId());
-        subscription.setVersion(subscriptionSetup.getVersion());
-        subscription.setDatasetId(subscriptionSetup.getDatasetId());
-        subscription.setRequestorRef(subscriptionSetup.getRequestorRef());
-        subscription.setIdMappingPrefixes(subscriptionSetup.getIdMappingPrefixes());
-        subscription.setMappingAdapterId(subscriptionSetup.getMappingAdapterId());
-        subscription.setAddressFieldName(subscriptionSetup.getAddressFieldName());
-        subscription.setSoapenvNamespace(subscriptionSetup.getSoapenvNamespace());
-        subscription.setIncrementalUpdates(subscriptionSetup.getIncrementalUpdates());
-        subscription.setOverrideHttps(subscriptionSetup.getOverrideHttps());
-        subscription.setContentType(subscriptionSetup.getContentType());
-        subscription.setVehicleMonitoringRefValue(subscriptionSetup.getVehicleMonitoringRefValue());
+        subscription.setSubscriptionId(ymlSubscription.getSubscriptionId());
+        subscription.setVersion(ymlSubscription.getVersion());
+        subscription.setDatasetId(ymlSubscription.getDatasetId());
+        subscription.setRequestorRef(ymlSubscription.getRequestorRef());
+        subscription.setIdMappingPrefixes(ymlSubscription.getIdMappingPrefixes());
+        subscription.setMappingAdapterId(ymlSubscription.getMappingAdapterId());
+        subscription.setAddressFieldName(ymlSubscription.getAddressFieldName());
+        subscription.setSoapenvNamespace(ymlSubscription.getSoapenvNamespace());
+        subscription.setIncrementalUpdates(ymlSubscription.getIncrementalUpdates());
+        subscription.setOverrideHttps(ymlSubscription.getOverrideHttps());
+        subscription.setContentType(ymlSubscription.getContentType());
+        subscription.setVehicleMonitoringRefValue(ymlSubscription.getVehicleMonitoringRefValue());
 
         return subscription;
     }
 
-    private SubscriptionSetup createSubscriptionSetup(Subscription subscription) {
-        SubscriptionSetup subscriptionSetup = new SubscriptionSetup();
-        subscriptionSetup.setActive(subscription.isActive());
-        subscriptionSetup.setVendor(subscription.getVendor());
-        subscriptionSetup.setAddressFieldName(subscription.getAddressFieldName());
-        subscriptionSetup.setUrlMap(subscription.getUrlMap());
-
-        subscriptionSetup.setSubscriptionType(subscription.getSubscriptionType());
-        subscriptionSetup.setServiceType(subscription.getServiceType());
-
-        subscriptionSetup.setSubscriptionMode(subscription.getSubscriptionMode());
-        if (subscription.getFilterMapPreset() != null) {
-            subscriptionSetup.setFilterPresets(subscription.getFilterMapPreset());
-        }
-
-        subscriptionSetup.setHeartbeatInterval(subscription.getHeartbeatInterval());
-        subscriptionSetup.setUpdateInterval(subscription.getUpdateInterval());
-        subscriptionSetup.setPreviewInterval(subscription.getPreviewInterval());
-        subscriptionSetup.setChangeBeforeUpdates(subscription.getChangeBeforeUpdates());
-        subscriptionSetup.setDurationOfSubscription(subscription.getDurationOfSubscription());
-        subscriptionSetup.setOperatorNamespace(subscription.getOperatorNamespace());
-
-        subscriptionSetup.setSubscriptionId(subscription.getSubscriptionId());
-        subscriptionSetup.setVersion(subscription.getVersion());
-        subscriptionSetup.setDatasetId(subscription.getDatasetId());
-        subscriptionSetup.setRequestorRef(subscription.getRequestorRef());
-        subscriptionSetup.setIdMappingPrefixes(subscription.getIdMappingPrefixes());
-        subscriptionSetup.setMappingAdapterId(subscription.getMappingAdapterId());
-        subscriptionSetup.setAddressFieldName(subscription.getAddressFieldName());
-        subscriptionSetup.setSoapenvNamespace(subscription.getSoapenvNamespace());
-        subscriptionSetup.setIncrementalUpdates(subscription.getIncrementalUpdates());
-        subscriptionSetup.setOverrideHttps(subscription.isOverrideHttps());
-        subscriptionSetup.setContentType(subscription.getContentType());
-        subscriptionSetup.setVehicleMonitoringRefValue(subscription.getVehicleMonitoringRefValue());
-
-        return subscriptionSetup;
-    }
-
-    private RouteBuilder getRouteBuilder(SubscriptionSetup subscriptionSetup) {
+    private RouteBuilder getRouteBuilder(Subscription subscription) {
         RouteBuilder route;
-        if (subscriptionSetup.getVersion().equals("1.4")) {
-            if (subscriptionSetup.getSubscriptionMode() == SubscriptionSetup.SubscriptionMode.SUBSCRIBE) {
-                if (subscriptionSetup.getServiceType() == SubscriptionSetup.ServiceType.SOAP) {
-                    route = new Siri20ToSiriWS14Subscription(camelConfiguration, handler, subscriptionSetup, subscriptionManager);
+        if (subscription.getVersion().equals("1.4")) {
+            if (subscription.getSubscriptionMode() == SubscriptionMode.SUBSCRIBE) {
+                if (subscription.getServiceType() == ServiceType.SOAP) {
+                    route = new Siri20ToSiriWS14Subscription(camelConfiguration, handler, subscription, subscriptionManager);
                 } else {
-                    route = new Siri20ToSiriRS14Subscription(camelConfiguration, handler, subscriptionSetup, subscriptionManager);
+                    route = new Siri20ToSiriRS14Subscription(camelConfiguration, handler, subscription, subscriptionManager);
                 }
             } else {
-                route = new Siri20ToSiriWS14RequestResponse(camelConfiguration, subscriptionSetup, subscriptionManager);
+                route = new Siri20ToSiriWS14RequestResponse(camelConfiguration, subscription, subscriptionManager);
             }
         } else {
-            if (subscriptionSetup.getSubscriptionMode() == SubscriptionSetup.SubscriptionMode.SUBSCRIBE) {
-                if (subscriptionSetup.getServiceType() == SubscriptionSetup.ServiceType.SOAP) {
-                    route = new Siri20ToSiriWS20Subscription(camelConfiguration, handler, subscriptionSetup, subscriptionManager);
+            if (subscription.getSubscriptionMode() == SubscriptionMode.SUBSCRIBE) {
+                if (subscription.getServiceType() == ServiceType.SOAP) {
+                    route = new Siri20ToSiriWS20Subscription(camelConfiguration, handler, subscription, subscriptionManager);
                 } else {
-                    route = new Siri20ToSiriRS20Subscription(camelConfiguration, handler, subscriptionSetup, subscriptionManager);
+                    route = new Siri20ToSiriRS20Subscription(camelConfiguration, handler, subscription, subscriptionManager);
                 }
             } else {
-                route = new Siri20ToSiriRS20RequestResponse(camelConfiguration, subscriptionSetup, subscriptionManager);
+                route = new Siri20ToSiriRS20RequestResponse(camelConfiguration, subscription, subscriptionManager);
             }
         }
         return route;
     }
 
-    private boolean isValid(SubscriptionSetup s) {
+    private boolean isValid(Subscription s) {
         Preconditions.checkNotNull(s.getVendor(), "Vendor is not set");
         Preconditions.checkNotNull(s.getDatasetId(), "DatasetId is not set");
         Preconditions.checkNotNull(s.getServiceType(), "ServiceType is not set");
@@ -322,29 +267,29 @@ public class SubscriptionInitializer implements CamelContextAware, ApplicationCo
 
         Preconditions.checkNotNull(s.getUrlMap(), "UrlMap is not set");
         Map<RequestType, String> urlMap = s.getUrlMap();
-        if (s.getSubscriptionMode() == SubscriptionSetup.SubscriptionMode.REQUEST_RESPONSE) {
+        if (s.getSubscriptionMode() == SubscriptionMode.REQUEST_RESPONSE) {
 
-            if (SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE.equals(s.getSubscriptionType())) {
+            if (SubscriptionType.SITUATION_EXCHANGE.equals(s.getSubscriptionType())) {
                 Preconditions.checkNotNull(urlMap.get(RequestType.GET_SITUATION_EXCHANGE), "GET_SITUATION_EXCHANGE-url is missing. " + s);
-            } else if (SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING.equals(s.getSubscriptionType())) {
+            } else if (SubscriptionType.VEHICLE_MONITORING.equals(s.getSubscriptionType())) {
                 Preconditions.checkNotNull(urlMap.get(RequestType.GET_VEHICLE_MONITORING), "GET_VEHICLE_MONITORING-url is missing. " + s);
-            } else if (SubscriptionSetup.SubscriptionType.ESTIMATED_TIMETABLE.equals(s.getSubscriptionType())) {
+            } else if (SubscriptionType.ESTIMATED_TIMETABLE.equals(s.getSubscriptionType())) {
                 Preconditions.checkNotNull(urlMap.get(RequestType.GET_ESTIMATED_TIMETABLE), "GET_ESTIMATED_TIMETABLE-url is missing. " + s);
             } else {
                 Preconditions.checkArgument(false, "URLs not configured correctly");
             }
-        } else if (s.getSubscriptionMode() == SubscriptionSetup.SubscriptionMode.SUBSCRIBE) {
+        } else if (s.getSubscriptionMode() == SubscriptionMode.SUBSCRIBE) {
 
             //Type-specific requirements
-            if (SubscriptionSetup.SubscriptionType.ESTIMATED_TIMETABLE.equals(s.getSubscriptionType())) {
+            if (SubscriptionType.ESTIMATED_TIMETABLE.equals(s.getSubscriptionType())) {
                 Preconditions.checkNotNull(s.getPreviewInterval(), "PreviewInterval is not set");
-            } else if (SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE.equals(s.getSubscriptionType())) {
+            } else if (SubscriptionType.SITUATION_EXCHANGE.equals(s.getSubscriptionType())) {
                 Preconditions.checkNotNull(s.getPreviewInterval(), "PreviewInterval is not set");
             }
 
             Preconditions.checkNotNull(urlMap.get(RequestType.SUBSCRIBE), "SUBSCRIBE-url is missing. " + s);
             Preconditions.checkNotNull(urlMap.get(RequestType.DELETE_SUBSCRIPTION), "DELETE_SUBSCRIPTION-url is missing. " + s);
-        }  else if (s.getSubscriptionMode() == SubscriptionSetup.SubscriptionMode.FETCHED_DELIVERY) {
+        }  else if (s.getSubscriptionMode() == SubscriptionMode.FETCHED_DELIVERY) {
             Preconditions.checkNotNull(urlMap.get(RequestType.SUBSCRIBE), "SUBSCRIBE-url is missing. " + s);
             Preconditions.checkNotNull(urlMap.get(RequestType.DELETE_SUBSCRIPTION), "DELETE_SUBSCRIPTION-url is missing. " + s);
         } else {

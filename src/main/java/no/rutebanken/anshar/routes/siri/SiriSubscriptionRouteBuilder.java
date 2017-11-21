@@ -5,13 +5,15 @@ import no.rutebanken.anshar.routes.BaseRouteBuilder;
 import no.rutebanken.anshar.routes.CamelConfiguration;
 import no.rutebanken.anshar.subscription.RequestType;
 import no.rutebanken.anshar.subscription.SubscriptionManager;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
+
+import static no.rutebanken.anshar.subscription.SubscriptionHelper.*;
 
 @Component
 public abstract class SiriSubscriptionRouteBuilder extends BaseRouteBuilder {
@@ -20,7 +22,7 @@ public abstract class SiriSubscriptionRouteBuilder extends BaseRouteBuilder {
     
     NamespacePrefixMapper customNamespacePrefixMapper;
 
-    SubscriptionSetup subscriptionSetup;
+    Subscription subscription;
 
     protected boolean hasBeenStarted;
 
@@ -32,7 +34,7 @@ public abstract class SiriSubscriptionRouteBuilder extends BaseRouteBuilder {
 
     String getTimeout() {
         int timeout;
-        Duration heartbeatInterval = subscriptionSetup.getHeartbeatInterval();
+        Duration heartbeatInterval = subscription.getHeartbeatInterval();
         if (heartbeatInterval != null) {
             long heartbeatIntervalMillis = heartbeatInterval.toMillis();
             timeout = (int) heartbeatIntervalMillis / 2;
@@ -48,34 +50,34 @@ public abstract class SiriSubscriptionRouteBuilder extends BaseRouteBuilder {
     }
 
     void initTriggerRoutes() {
-//        if (!subscriptionManager.isNewSubscription(subscriptionSetup.getSubscriptionId())) {
-//            logger.info("Subscription is NOT new - flagging as already started if active {}", subscriptionSetup);
-//            hasBeenStarted = subscriptionManager.isActiveSubscription(subscriptionSetup.getSubscriptionId());
+//        if (!subscriptionManager.isNewSubscription(subscription.getSubscriptionId())) {
+//            logger.info("Subscription is NOT new - flagging as already started if active {}", subscription);
+//            hasBeenStarted = subscriptionManager.isActiveSubscription(subscription.getSubscriptionId());
 //        }
         // Assuming ALL subscriptions are hunky-dory on start-up
-        if (subscriptionManager.get(subscriptionSetup.getSubscriptionId()) != null) {
+        if (subscriptionManager.get(subscription.getSubscriptionId()) != null) {
             // Subscription is already initialized on another pod - keep existing status
-            hasBeenStarted = subscriptionManager.isActiveSubscription(subscriptionSetup.getSubscriptionId());
+            hasBeenStarted = subscriptionManager.isActiveSubscription(subscription.getSubscriptionId());
         } else {
             // Unknown subscription or first pod to start
-            hasBeenStarted = subscriptionSetup.isActive();
+            hasBeenStarted = subscription.isActive();
         }
 
-        singletonFrom("quartz2://anshar/monitor_" + subscriptionSetup.getSubscriptionId() + "?fireNow=true&trigger.repeatInterval=" + 15000,
-                "monitor.subscription." + subscriptionSetup.getVendor())
+        singletonFrom("quartz2://anshar/monitor_" + subscription.getSubscriptionId() + "?fireNow=true&trigger.repeatInterval=" + 15000,
+                "monitor.subscription." + subscription.getVendor())
                 .choice()
                 .when(p -> shouldBeStarted(p.getFromRouteId()))
-                    .log("Triggering start subscription: " + subscriptionSetup)
+                    .log("Triggering start subscription: " + subscription)
                     .process(p -> hasBeenStarted = true)
-                    .to("direct:" + subscriptionSetup.getStartSubscriptionRouteName()) // Start subscription
+                    .to("direct:" + getStartSubscriptionRouteName(subscription)) // Start subscription
                 .when(p -> shouldBeCancelled(p.getFromRouteId()))
-                    .log("Triggering cancel subscription: " + subscriptionSetup)
+                    .log("Triggering cancel subscription: " + subscription)
                     .process(p -> hasBeenStarted = false)
-                    .to("direct:" + subscriptionSetup.getCancelSubscriptionRouteName())// Cancel subscription
+                    .to("direct:" + getCancelSubscriptionRouteName(subscription))// Cancel subscription
                 .when(p -> shouldCheckStatus(p.getFromRouteId()))
-                    .log("Check status: " + subscriptionSetup)
+                    .log("Check status: " + subscription)
                     .process(p -> lastCheckStatus = Instant.now())
-                    .to("direct:" + subscriptionSetup.getCheckStatusRouteName()) // Check status
+                    .to("direct:" + getCheckStatusRouteName(subscription)) // Check status
                 .end()
         ;
 
@@ -85,9 +87,9 @@ public abstract class SiriSubscriptionRouteBuilder extends BaseRouteBuilder {
         if (!isLeader(routeId)) {
             return false;
         }
-        boolean isActive = subscriptionManager.isActiveSubscription(subscriptionSetup.getSubscriptionId());
-        boolean requiresCheckStatusRequest = subscriptionSetup.getUrlMap().get(RequestType.CHECK_STATUS) != null;
-        boolean isTimeToCheckStatus = lastCheckStatus.isBefore(Instant.now().minus(subscriptionSetup.getHeartbeatInterval()));
+        boolean isActive = subscriptionManager.isActiveSubscription(subscription.getSubscriptionId());
+        boolean requiresCheckStatusRequest = subscription.getUrlMap().get(RequestType.CHECK_STATUS) != null;
+        boolean isTimeToCheckStatus = lastCheckStatus.isBefore(Instant.now().minus(subscription.getHeartbeatInterval()));
 
         return isActive & requiresCheckStatusRequest & isTimeToCheckStatus;
     }
@@ -96,7 +98,7 @@ public abstract class SiriSubscriptionRouteBuilder extends BaseRouteBuilder {
         if (!isLeader(routeId)) {
             return false;
         }
-        boolean isActive = subscriptionManager.isActiveSubscription(subscriptionSetup.getSubscriptionId());
+        boolean isActive = subscriptionManager.isActiveSubscription(subscription.getSubscriptionId());
 
         boolean shouldBeStarted = (isActive & !hasBeenStarted);
         return shouldBeStarted;
@@ -106,8 +108,8 @@ public abstract class SiriSubscriptionRouteBuilder extends BaseRouteBuilder {
         if (!isLeader(routeId)) {
             return false;
         }
-        boolean isActive = subscriptionManager.isActiveSubscription(subscriptionSetup.getSubscriptionId());
-        boolean isHealthy = subscriptionManager.isSubscriptionHealthy(subscriptionSetup.getSubscriptionId());
+        boolean isActive = subscriptionManager.isActiveSubscription(subscription.getSubscriptionId());
+        boolean isHealthy = subscriptionManager.isSubscriptionHealthy(subscription.getSubscriptionId());
 
         boolean shouldBeCancelled = (hasBeenStarted & !isActive) | (hasBeenStarted & isActive & !isHealthy);
 

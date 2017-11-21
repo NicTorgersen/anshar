@@ -5,7 +5,7 @@ import no.rutebanken.anshar.routes.siri.transformer.ValueAdapter;
 import no.rutebanken.anshar.routes.siri.transformer.impl.PrefixAdapter;
 import no.rutebanken.anshar.routes.siri.transformer.impl.StopPlaceRegisterMapper;
 import no.rutebanken.anshar.subscription.MappingAdapterPresets;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import uk.org.ifopt.siri20.StopPlaceRef;
 import uk.org.siri.siri20.*;
 
@@ -14,7 +14,7 @@ import java.util.List;
 
 public abstract class MappingAdapter {
 
-    public abstract List<ValueAdapter> getValueAdapters(SubscriptionSetup subscriptionSetup);
+    public abstract List<ValueAdapter> getValueAdapters(Subscription subscription);
 
     public List<ValueAdapter> getOutboundValueAdapters(OutboundIdMappingPolicy mappingPolicy) {
         return new MappingAdapterPresets().getOutboundAdapters(mappingPolicy);

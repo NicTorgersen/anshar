@@ -4,7 +4,9 @@ import com.hazelcast.core.IMap;
 import no.rutebanken.anshar.routes.siri.SiriObjectFactory;
 import no.rutebanken.anshar.routes.siri.handlers.OutboundIdMappingPolicy;
 import no.rutebanken.anshar.subscription.MappingAdapterPresets;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.enums.ServiceType;
+import no.rutebanken.anshar.subscription.enums.SubscriptionMode;
+import no.rutebanken.anshar.subscription.enums.SubscriptionType;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
@@ -85,13 +87,13 @@ public class ServerSubscriptionManager extends CamelRouteManager {
 
     @PostConstruct
     private void initializeActiveMqProducers() {
-        activeMQ_SX = createActiveMQSubscription(SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE);
-        activeMQ_VM = createActiveMQSubscription(SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING);
-        activeMQ_ET = createActiveMQSubscription(SubscriptionSetup.SubscriptionType.ESTIMATED_TIMETABLE);
-        activeMQ_PT = createActiveMQSubscription(SubscriptionSetup.SubscriptionType.PRODUCTION_TIMETABLE);
+        activeMQ_SX = createActiveMQSubscription(SubscriptionType.SITUATION_EXCHANGE);
+        activeMQ_VM = createActiveMQSubscription(SubscriptionType.VEHICLE_MONITORING);
+        activeMQ_ET = createActiveMQSubscription(SubscriptionType.ESTIMATED_TIMETABLE);
+        activeMQ_PT = createActiveMQSubscription(SubscriptionType.PRODUCTION_TIMETABLE);
     }
 
-    private OutboundSubscriptionSetup createActiveMQSubscription(SubscriptionSetup.SubscriptionType type) {
+    private OutboundSubscriptionSetup createActiveMQSubscription(SubscriptionType type) {
         return new OutboundSubscriptionSetup(
                 type,
                 activeMqTopicPrefix + type.name().toLowerCase(),
@@ -199,11 +201,11 @@ public class ServerSubscriptionManager extends CamelRouteManager {
         OutboundSubscriptionSetup setup = new OutboundSubscriptionSetup(
                 subscriptionRequest.getRequestTimestamp(),
                 getSubscriptionType(subscriptionRequest),
-                SubscriptionSetup.SubscriptionMode.SUBSCRIBE,
+                SubscriptionMode.SUBSCRIBE,
                 subscriptionRequest.getConsumerAddress() != null ? subscriptionRequest.getConsumerAddress():subscriptionRequest.getAddress(),
                 getHeartbeatInterval(subscriptionRequest),
                 getChangeBeforeUpdates(subscriptionRequest),
-                SubscriptionSetup.ServiceType.REST,
+                ServiceType.REST,
                 siriHelper.getFilter(subscriptionRequest),
                 mappingAdapterPresets.getOutboundAdapters(outboundIdMappingPolicy),
                 findSubscriptionIdentifier(subscriptionRequest),
@@ -225,15 +227,15 @@ public class ServerSubscriptionManager extends CamelRouteManager {
         return Math.max(heartbeatInterval, minimumHeartbeatInterval);
     }
 
-    private SubscriptionSetup.SubscriptionType getSubscriptionType(SubscriptionRequest subscriptionRequest) {
+    private SubscriptionType getSubscriptionType(SubscriptionRequest subscriptionRequest) {
         if (siriHelper.containsValues(subscriptionRequest.getSituationExchangeSubscriptionRequests())) {
-            return SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE;
+            return SubscriptionType.SITUATION_EXCHANGE;
         } else if (siriHelper.containsValues(subscriptionRequest.getVehicleMonitoringSubscriptionRequests())) {
-            return SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING;
+            return SubscriptionType.VEHICLE_MONITORING;
         } else if (siriHelper.containsValues(subscriptionRequest.getEstimatedTimetableSubscriptionRequests())) {
-            return SubscriptionSetup.SubscriptionType.ESTIMATED_TIMETABLE;
+            return SubscriptionType.ESTIMATED_TIMETABLE;
         } else if (siriHelper.containsValues(subscriptionRequest.getProductionTimetableSubscriptionRequests())) {
-            return SubscriptionSetup.SubscriptionType.PRODUCTION_TIMETABLE;
+            return SubscriptionType.PRODUCTION_TIMETABLE;
         }
         return null;
     }
@@ -349,8 +351,8 @@ public class ServerSubscriptionManager extends CamelRouteManager {
         }
 
         subscriptions.values().stream().filter(subscriptionRequest ->
-                        (subscriptionRequest.getSubscriptionMode().equals(SubscriptionSetup.SubscriptionMode.SUBSCRIBE) &
-                                subscriptionRequest.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING) &
+                        (subscriptionRequest.getSubscriptionMode().equals(SubscriptionMode.SUBSCRIBE) &
+                                subscriptionRequest.getSubscriptionType().equals(SubscriptionType.VEHICLE_MONITORING) &
                                 (subscriptionRequest.getDatasetId() == null || (subscriptionRequest.getDatasetId().equals(datasetId))))
 
         ).forEach(subscription ->
@@ -373,8 +375,8 @@ public class ServerSubscriptionManager extends CamelRouteManager {
         }
 
         subscriptions.values().stream().filter(subscriptionRequest ->
-                        (subscriptionRequest.getSubscriptionMode().equals(SubscriptionSetup.SubscriptionMode.SUBSCRIBE) &
-                                subscriptionRequest.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE) &
+                        (subscriptionRequest.getSubscriptionMode().equals(SubscriptionMode.SUBSCRIBE) &
+                                subscriptionRequest.getSubscriptionType().equals(SubscriptionType.SITUATION_EXCHANGE) &
                                 (subscriptionRequest.getDatasetId() == null || (subscriptionRequest.getDatasetId().equals(datasetId))))
 
         ).forEach(subscription ->
@@ -395,8 +397,8 @@ public class ServerSubscriptionManager extends CamelRouteManager {
         }
 
         subscriptions.values().stream().filter(subscriptionRequest ->
-                        (subscriptionRequest.getSubscriptionMode().equals(SubscriptionSetup.SubscriptionMode.SUBSCRIBE) &
-                                subscriptionRequest.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.PRODUCTION_TIMETABLE) &
+                        (subscriptionRequest.getSubscriptionMode().equals(SubscriptionMode.SUBSCRIBE) &
+                                subscriptionRequest.getSubscriptionType().equals(SubscriptionType.PRODUCTION_TIMETABLE) &
                                 (subscriptionRequest.getDatasetId() == null || (subscriptionRequest.getDatasetId().equals(datasetId))))
 
         ).forEach(subscription ->
@@ -417,8 +419,8 @@ public class ServerSubscriptionManager extends CamelRouteManager {
         }
 
         subscriptions.values().stream().filter(subscriptionRequest ->
-                        (subscriptionRequest.getSubscriptionMode().equals(SubscriptionSetup.SubscriptionMode.SUBSCRIBE) &
-                                subscriptionRequest.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.ESTIMATED_TIMETABLE) &
+                        (subscriptionRequest.getSubscriptionMode().equals(SubscriptionMode.SUBSCRIBE) &
+                                subscriptionRequest.getSubscriptionType().equals(SubscriptionType.ESTIMATED_TIMETABLE) &
                                 (subscriptionRequest.getDatasetId() == null || (subscriptionRequest.getDatasetId().equals(datasetId))))
 
         ).forEach(subscription ->

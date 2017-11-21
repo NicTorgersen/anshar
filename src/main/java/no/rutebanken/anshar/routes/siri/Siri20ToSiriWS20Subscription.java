@@ -6,7 +6,7 @@ import no.rutebanken.anshar.routes.CamelConfiguration;
 import no.rutebanken.anshar.routes.siri.handlers.SiriHandler;
 import no.rutebanken.anshar.subscription.RequestType;
 import no.rutebanken.anshar.subscription.SubscriptionManager;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import org.apache.camel.Exchange;
 import org.apache.camel.ExchangePattern;
 import org.apache.camel.component.http4.HttpMethods;
@@ -17,16 +17,17 @@ import java.io.InputStream;
 import java.util.Map;
 
 import static no.rutebanken.anshar.routes.siri.SiriRequestFactory.getCamelUrl;
+import static no.rutebanken.anshar.subscription.SubscriptionHelper.*;
 
 public class Siri20ToSiriWS20Subscription extends SiriSubscriptionRouteBuilder {
     private Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private SiriHandler handler;
 
-    public Siri20ToSiriWS20Subscription(CamelConfiguration config, SiriHandler handler, SubscriptionSetup subscriptionSetup, SubscriptionManager subscriptionManager) {
+    public Siri20ToSiriWS20Subscription(CamelConfiguration config, SiriHandler handler, Subscription subscription, SubscriptionManager subscriptionManager) {
         super(config, subscriptionManager);
         this.handler = handler;
-        this.subscriptionSetup = subscriptionSetup;
+        this.subscription = subscription;
 
         this.customNamespacePrefixMapper = new NamespacePrefixMapper() {
             @Override
@@ -40,8 +41,8 @@ public class Siri20ToSiriWS20Subscription extends SiriSubscriptionRouteBuilder {
     @Override
     public void configure() throws Exception {
 
-        Map<RequestType, String> urlMap = subscriptionSetup.getUrlMap();
-        SiriRequestFactory helper = new SiriRequestFactory(subscriptionSetup);
+        Map<RequestType, String> urlMap = subscription.getUrlMap();
+        SiriRequestFactory helper = new SiriRequestFactory(subscription);
 
         String endpointUrl = urlMap.get(RequestType.SUBSCRIBE);
         if (endpointUrl.startsWith("https4://")) {
@@ -51,19 +52,19 @@ public class Siri20ToSiriWS20Subscription extends SiriSubscriptionRouteBuilder {
         }
 
         //Start subscription
-        from("direct:" + subscriptionSetup.getStartSubscriptionRouteName())
-                .log("Starting subscription " + subscriptionSetup.toString())
+        from("direct:" + getStartSubscriptionRouteName(subscription))
+                .log("Starting subscription " + subscription.toString())
                 .bean(helper, "createSiriSubscriptionRequest", false)
                 .marshal(SiriDataFormatHelper.getSiriJaxbDataformat(customNamespacePrefixMapper))
                 .setExchangePattern(ExchangePattern.InOut) // Make sure we wait for a response
                 .setHeader("SOAPAction", constant("Subscribe"))
-                .setHeader("operatorNamespace", constant(subscriptionSetup.getOperatorNamespace())) // Need to make SOAP request with endpoint specific element namespace
+                .setHeader("operatorNamespace", constant(subscription.getOperatorNamespace())) // Need to make SOAP request with endpoint specific element namespace
                 .setHeader("endpointUrl", constant(endpointUrl)) // Need to make SOAP request with endpoint specific element namespace
-                .setHeader("soapEnvelopeNamespace", constant(subscriptionSetup.getSoapenvNamespace())) // Need to make SOAP request with endpoint specific element namespace
+                .setHeader("soapEnvelopeNamespace", constant(subscription.getSoapenvNamespace())) // Need to make SOAP request with endpoint specific element namespace
                 .to("xslt:xsl/siri_raw_soap.xsl") // Convert SIRI raw request to SOAP version
                 .to("xslt:xsl/siri_14_20.xsl") // Convert SIRI raw request to SOAP version
                 .removeHeaders("CamelHttp*") // Remove any incoming HTTP headers as they interfere with the outgoing definition
-                .setHeader(Exchange.CONTENT_TYPE, constant(subscriptionSetup.getContentType())) // Necessary when talking to Microsoft web services
+                .setHeader(Exchange.CONTENT_TYPE, constant(subscription.getContentType())) // Necessary when talking to Microsoft web services
                 .setHeader(Exchange.HTTP_METHOD, constant(HttpMethods.POST))
                 .to("log:sent:" + getClass().getSimpleName() + "?showAll=true&multiline=true")
                 .to(getCamelUrl(urlMap.get(RequestType.SUBSCRIBE), getTimeout()))
@@ -74,24 +75,24 @@ public class Siri20ToSiriWS20Subscription extends SiriSubscriptionRouteBuilder {
                 .to("log:received:" + getClass().getSimpleName() + "?showAll=true&multiline=true")
                 .process(p -> {
                     InputStream body = p.getIn().getBody(InputStream.class);
-                    handler.handleIncomingSiri(subscriptionSetup.getSubscriptionId(), body);
+                    handler.handleIncomingSiri(subscription.getSubscriptionId(), body);
 
                 })
-                .routeId("start.ws.20.subscription."+subscriptionSetup.getVendor())
+                .routeId("start.ws.20.subscription."+subscription.getVendor())
         ;
 
         //Check status-request checks the server status - NOT the subscription
-        from("direct:" + subscriptionSetup.getCheckStatusRouteName())
+        from("direct:" + getCheckStatusRouteName(subscription))
                 .bean(helper, "createSiriCheckStatusRequest", false)
                 .marshal(SiriDataFormatHelper.getSiriJaxbDataformat(customNamespacePrefixMapper))
                 .setExchangePattern(ExchangePattern.InOut) // Make sure we wait for a response
                 .setHeader("SOAPAction", constant("CheckStatus"))
-                .setHeader("operatorNamespace", constant(subscriptionSetup.getOperatorNamespace())) // Need to make SOAP request with endpoint specific element namespace
+                .setHeader("operatorNamespace", constant(subscription.getOperatorNamespace())) // Need to make SOAP request with endpoint specific element namespace
                 .setHeader("endpointUrl", constant(endpointUrl)) // Need to make SOAP request with endpoint specific element namespace
-                .setHeader("soapEnvelopeNamespace", constant(subscriptionSetup.getSoapenvNamespace())) // Need to make SOAP request with endpoint specific element namespace
+                .setHeader("soapEnvelopeNamespace", constant(subscription.getSoapenvNamespace())) // Need to make SOAP request with endpoint specific element namespace
                 .to("xslt:xsl/siri_raw_soap.xsl") // Convert SIRI raw request to SOAP version
                 .removeHeaders("CamelHttp*") // Remove any incoming HTTP headers as they interfere with the outgoing definition
-                .setHeader(Exchange.CONTENT_TYPE, constant(subscriptionSetup.getContentType())) // Necessary when talking to Microsoft web services
+                .setHeader(Exchange.CONTENT_TYPE, constant(subscription.getContentType())) // Necessary when talking to Microsoft web services
                 .setHeader(Exchange.HTTP_METHOD, constant(org.apache.camel.http.common.HttpMethods.POST))
                 .to("log:cs:" + getClass().getSimpleName() + "?showAll=true&multiline=true")
                 .to(getCamelUrl(urlMap.get(RequestType.CHECK_STATUS), getTimeout()))
@@ -104,30 +105,30 @@ public class Siri20ToSiriWS20Subscription extends SiriSubscriptionRouteBuilder {
                     if ("200" .equals(responseCode)) {
                         InputStream body = p.getIn().getBody(InputStream.class);
                         if (body != null && body.available() > 0) {
-                            handler.handleIncomingSiri(subscriptionSetup.getSubscriptionId(), body);
+                            handler.handleIncomingSiri(subscription.getSubscriptionId(), body);
                         }
                     } else {
-                        logger.info("CheckStatus NOT OK - Remote service is down [{}]", subscriptionSetup.buildUrl());
+                        logger.info("CheckStatus NOT OK - Remote service is down [{}]", buildUrl(subscription));
                     }
 
                 })
-                .routeId("check.status.rs.20.subscription."+subscriptionSetup.getVendor())
+                .routeId("check.status.rs.20.subscription."+subscription.getVendor())
         ;
 
         //Cancel subscription
-        from("direct:" + subscriptionSetup.getCancelSubscriptionRouteName())
-                .log("Cancelling subscription " + subscriptionSetup.toString())
+        from("direct:" + getCancelSubscriptionRouteName(subscription))
+                .log("Cancelling subscription " + subscription.toString())
                 .bean(helper, "createSiriTerminateSubscriptionRequest", false)
                 .marshal(SiriDataFormatHelper.getSiriJaxbDataformat(customNamespacePrefixMapper))
                 .setExchangePattern(ExchangePattern.InOut) // Make sure we wait for a response
                 .setProperty(Exchange.LOG_DEBUG_BODY_STREAMS, constant("true"))
                 .setHeader("SOAPAction", constant("DeleteSubscription")) // set SOAPAction Header (Microsoft requirement)
-                .setHeader("operatorNamespace", constant(subscriptionSetup.getOperatorNamespace())) // Need to make SOAP request with endpoint specific element namespace
+                .setHeader("operatorNamespace", constant(subscription.getOperatorNamespace())) // Need to make SOAP request with endpoint specific element namespace
                 .setHeader("endpointUrl", constant(endpointUrl)) // Need to make SOAP request with endpoint specific element namespace
                 .to("xslt:xsl/siri_raw_soap.xsl") // Convert SIRI raw request to SOAP version
                 .to("xslt:xsl/siri_14_20.xsl") // Convert SIRI raw request to SOAP version
                 .removeHeaders("CamelHttp*") // Remove any incoming HTTP headers as they interfere with the outgoing definition
-                .setHeader(Exchange.CONTENT_TYPE, constant(subscriptionSetup.getContentType())) // Necessary when talking to Microsoft web services
+                .setHeader(Exchange.CONTENT_TYPE, constant(subscription.getContentType())) // Necessary when talking to Microsoft web services
                 .setHeader(Exchange.HTTP_METHOD, constant(HttpMethods.POST))
                 .to("log:sent:" + getClass().getSimpleName() + "?showAll=true&multiline=true")
                 .to(getCamelUrl(urlMap.get(RequestType.DELETE_SUBSCRIPTION), getTimeout()))
@@ -139,10 +140,10 @@ public class Siri20ToSiriWS20Subscription extends SiriSubscriptionRouteBuilder {
                     InputStream body = p.getIn().getBody(InputStream.class);
                     logger.info("Response body [{}]", body);
                     if (body != null && body.available() > 0) {
-                        handler.handleIncomingSiri(subscriptionSetup.getSubscriptionId(), body);
+                        handler.handleIncomingSiri(subscription.getSubscriptionId(), body);
                     }
                 })
-                .routeId("cancel.ws.20.subscription."+subscriptionSetup.getVendor())
+                .routeId("cancel.ws.20.subscription."+subscription.getVendor())
         ;
 
         initTriggerRoutes();

@@ -2,7 +2,8 @@ package no.rutebanken.anshar.routes;
 
 import no.rutebanken.anshar.subscription.RequestType;
 import no.rutebanken.anshar.subscription.SubscriptionManager;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.enums.SubscriptionType;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import org.apache.camel.component.hazelcast.policy.HazelcastRoutePolicy;
 import org.apache.camel.model.RouteDefinition;
 import org.apache.camel.spi.RouteContext;
@@ -47,12 +48,12 @@ public abstract class BaseRouteBuilder extends SpringRouteBuilder {
 
 
     protected boolean requestData(String subscriptionId, String fromRouteId) {
-        SubscriptionSetup subscriptionSetup = subscriptionManager.get(subscriptionId);
+        Subscription subscription = subscriptionManager.get(subscriptionId);
 
         boolean isLeader = isLeader(fromRouteId);
-        log.debug("isActive: {}, isActivated {}, isLeader {}: {}", subscriptionSetup.isActive(), subscriptionManager.isActiveSubscription(subscriptionId), isLeader, subscriptionSetup);
+        log.debug("isActive: {}, isLeader {}: {}", subscription.isActive(), isLeader, subscription);
 
-        return (isLeader & subscriptionSetup.isActive() && subscriptionManager.isActiveSubscription(subscriptionId));
+        return (isLeader & subscription.isActive());
     }
 
     protected boolean isLeader(String routeId) {
@@ -69,14 +70,14 @@ public abstract class BaseRouteBuilder extends SpringRouteBuilder {
     }
 
 
-    protected String getRequestUrl(SubscriptionSetup subscriptionSetup) throws ServiceNotSupportedException {
-        Map<RequestType, String> urlMap = subscriptionSetup.getUrlMap();
+    protected String getRequestUrl(Subscription subscription) throws ServiceNotSupportedException {
+        Map<RequestType, String> urlMap = subscription.getUrlMap();
         String url;
-        if (subscriptionSetup.getSubscriptionType() == SubscriptionSetup.SubscriptionType.ESTIMATED_TIMETABLE) {
+        if (subscription.getSubscriptionType() == SubscriptionType.ESTIMATED_TIMETABLE) {
             url = urlMap.get(RequestType.GET_ESTIMATED_TIMETABLE);
-        } else if (subscriptionSetup.getSubscriptionType() == SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING) {
+        } else if (subscription.getSubscriptionType() == SubscriptionType.VEHICLE_MONITORING) {
             url = urlMap.get(RequestType.GET_VEHICLE_MONITORING);
-        } else if (subscriptionSetup.getSubscriptionType() == SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE) {
+        } else if (subscription.getSubscriptionType() == SubscriptionType.SITUATION_EXCHANGE) {
             url = urlMap.get(RequestType.GET_SITUATION_EXCHANGE);
         } else {
             throw new ServiceNotSupportedException();
@@ -84,13 +85,13 @@ public abstract class BaseRouteBuilder extends SpringRouteBuilder {
         return getCamelUrl(url);
     }
 
-    protected String getSoapAction(SubscriptionSetup subscriptionSetup) throws ServiceNotSupportedException {
+    protected String getSoapAction(Subscription subscription) throws ServiceNotSupportedException {
 
-        if (subscriptionSetup.getSubscriptionType() == SubscriptionSetup.SubscriptionType.ESTIMATED_TIMETABLE) {
+        if (subscription.getSubscriptionType() == SubscriptionType.ESTIMATED_TIMETABLE) {
             return "GetEstimatedTimetableRequest";
-        } else if (subscriptionSetup.getSubscriptionType() == SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING) {
+        } else if (subscription.getSubscriptionType() == SubscriptionType.VEHICLE_MONITORING) {
             return "GetVehicleMonitoring";
-        } else if (subscriptionSetup.getSubscriptionType() == SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE) {
+        } else if (subscription.getSubscriptionType() == SubscriptionType.SITUATION_EXCHANGE) {
             return "GetSituationExchange";
         } else {
             throw new ServiceNotSupportedException();

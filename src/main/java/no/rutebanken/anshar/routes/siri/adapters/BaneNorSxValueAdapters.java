@@ -2,7 +2,7 @@ package no.rutebanken.anshar.routes.siri.adapters;
 
 import no.rutebanken.anshar.routes.siri.transformer.ValueAdapter;
 import no.rutebanken.anshar.routes.siri.transformer.impl.JbvCodeMapper;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import uk.org.siri.siri20.StopPointRef;
 
 import java.util.ArrayList;
@@ -13,17 +13,10 @@ public class BaneNorSxValueAdapters extends MappingAdapter {
 
 
     @Override
-    public List<ValueAdapter> getValueAdapters(SubscriptionSetup subscriptionSetup) {
+    public List<ValueAdapter> getValueAdapters(Subscription subscription) {
 
         List<ValueAdapter> valueAdapters = new ArrayList<>();
         valueAdapters.add(new JbvCodeMapper(StopPointRef.class));
-
-//        if (subscriptionSetup.getDatasetId() != null && !subscriptionSetup.getDatasetId().isEmpty()) {
-//            List<ValueAdapter> datasetPrefix = createIdPrefixAdapters(subscriptionSetup.getDatasetId());
-//            if (!subscriptionSetup.getMappingAdapters().containsAll(datasetPrefix)) {
-//                subscriptionSetup.getMappingAdapters().addAll(datasetPrefix);
-//            }
-//        }
 
         return valueAdapters;
     }

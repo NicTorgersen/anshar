@@ -1,7 +1,9 @@
 package no.rutebanken.anshar.routes.outbound;
 
 import no.rutebanken.anshar.routes.siri.transformer.ValueAdapter;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.enums.ServiceType;
+import no.rutebanken.anshar.subscription.enums.SubscriptionMode;
+import no.rutebanken.anshar.subscription.enums.SubscriptionType;
 
 import java.io.Serializable;
 import java.time.ZonedDateTime;
@@ -12,12 +14,12 @@ import java.util.Set;
 public class OutboundSubscriptionSetup implements Serializable {
 
     private ZonedDateTime requestTimestamp;
-    private SubscriptionSetup.SubscriptionType subscriptionType;
-    private SubscriptionSetup.SubscriptionMode subscriptionMode;
+    private SubscriptionType subscriptionType;
+    private SubscriptionMode subscriptionMode;
     private String address;
     private long heartbeatInterval;
     private int timeToLive;
-    private SubscriptionSetup.ServiceType serviceType;
+    private ServiceType serviceType;
     private Map<Class, Set<String>> filterMap;
     private List<ValueAdapter> valueAdapters;
     private String subscriptionId;
@@ -27,8 +29,8 @@ public class OutboundSubscriptionSetup implements Serializable {
     private String datasetId;
     private long changeBeforeUpdates;
 
-    public OutboundSubscriptionSetup(ZonedDateTime requestTimestamp, SubscriptionSetup.SubscriptionType subscriptionType, SubscriptionSetup.SubscriptionMode subscriptionMode, String address, long heartbeatInterval,
-                                     long changeBeforeUpdates, SubscriptionSetup.ServiceType serviceType, Map<Class, Set<String>> filterMap, List<ValueAdapter> valueAdapters,
+    public OutboundSubscriptionSetup(ZonedDateTime requestTimestamp, SubscriptionType subscriptionType, SubscriptionMode subscriptionMode, String address, long heartbeatInterval,
+                                     long changeBeforeUpdates, ServiceType serviceType, Map<Class, Set<String>> filterMap, List<ValueAdapter> valueAdapters,
                                      String subscriptionId, String requestorRef, ZonedDateTime initialTerminationTime, String datasetId, boolean active) {
         this.requestTimestamp = requestTimestamp;
         this.subscriptionType = subscriptionType;
@@ -46,7 +48,7 @@ public class OutboundSubscriptionSetup implements Serializable {
         this.active = active;
     }
 
-    OutboundSubscriptionSetup(SubscriptionSetup.SubscriptionType subscriptionType, String address, int timeToLive, List<ValueAdapter> outboundAdapters) {
+    OutboundSubscriptionSetup(SubscriptionType subscriptionType, String address, int timeToLive, List<ValueAdapter> outboundAdapters) {
         this.subscriptionType = subscriptionType;
         this.address = address;
         this.timeToLive = timeToLive;
@@ -57,11 +59,11 @@ public class OutboundSubscriptionSetup implements Serializable {
         return requestTimestamp;
     }
 
-    public SubscriptionSetup.SubscriptionType getSubscriptionType() {
+    public SubscriptionType getSubscriptionType() {
         return subscriptionType;
     }
 
-    public SubscriptionSetup.SubscriptionMode getSubscriptionMode() {
+    public SubscriptionMode getSubscriptionMode() {
         return subscriptionMode;
     }
 
@@ -81,7 +83,7 @@ public class OutboundSubscriptionSetup implements Serializable {
         return changeBeforeUpdates;
     }
 
-    public SubscriptionSetup.ServiceType getServiceType() {
+    public ServiceType getServiceType() {
         return serviceType;
     }
 

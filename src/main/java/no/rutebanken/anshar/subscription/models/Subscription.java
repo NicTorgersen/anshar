@@ -4,11 +4,15 @@ import no.rutebanken.anshar.routes.siri.transformer.ValueAdapter;
 import no.rutebanken.anshar.subscription.DurationConverter;
 import no.rutebanken.anshar.subscription.RequestType;
 import no.rutebanken.anshar.subscription.SubscriptionPreset;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.enums.ServiceType;
+import no.rutebanken.anshar.subscription.enums.SubscriptionMode;
+import no.rutebanken.anshar.subscription.enums.SubscriptionType;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.persistence.*;
+import javax.transaction.Transactional;
 import java.io.Serializable;
 import java.text.MessageFormat;
 import java.time.Duration;
@@ -16,7 +20,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static no.rutebanken.anshar.subscription.SubscriptionHelper.buildUrl;
+
 @Entity
+@Transactional
 public class Subscription implements Serializable {
     @Transient
     private Logger logger = LoggerFactory.getLogger(Subscription.class);
@@ -28,17 +35,16 @@ public class Subscription implements Serializable {
     @Transient
     private List<ValueAdapter> mappingAdapters = new ArrayList<>();
 
-    @OneToOne
-    private Activity activity;
+    private String address;
 
     @Enumerated(EnumType.STRING)
-    private SubscriptionSetup.SubscriptionType subscriptionType;
+    private SubscriptionType subscriptionType;
 
     @Enumerated(EnumType.STRING)
-    private SubscriptionSetup.ServiceType serviceType;
+    private ServiceType serviceType;
 
     @Enumerated(EnumType.STRING)
-    private SubscriptionSetup.SubscriptionMode subscriptionMode;
+    private SubscriptionMode subscriptionMode;
 
     @Enumerated(EnumType.STRING)
     private SubscriptionPreset filterMapPreset;
@@ -90,12 +96,16 @@ public class Subscription implements Serializable {
     @ElementCollection(fetch = FetchType.EAGER)
     private Map<RequestType, String> urlMap;
 
-    public long getInternalId() {
+    private long getInternalId() {
         return internalId;
     }
 
-    public void setInternalId(long internalId) {
-        this.internalId = internalId;
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
     }
 
     public List<ValueAdapter> getMappingAdapters() {
@@ -106,27 +116,27 @@ public class Subscription implements Serializable {
         this.mappingAdapters = mappingAdapters;
     }
 
-    public SubscriptionSetup.SubscriptionType getSubscriptionType() {
+    public SubscriptionType getSubscriptionType() {
         return subscriptionType;
     }
 
-    public void setSubscriptionType(SubscriptionSetup.SubscriptionType subscriptionType) {
+    public void setSubscriptionType(SubscriptionType subscriptionType) {
         this.subscriptionType = subscriptionType;
     }
 
-    public SubscriptionSetup.ServiceType getServiceType() {
+    public ServiceType getServiceType() {
         return serviceType;
     }
 
-    public void setServiceType(SubscriptionSetup.ServiceType serviceType) {
+    public void setServiceType(ServiceType serviceType) {
         this.serviceType = serviceType;
     }
 
-    public SubscriptionSetup.SubscriptionMode getSubscriptionMode() {
+    public SubscriptionMode getSubscriptionMode() {
         return subscriptionMode;
     }
 
-    public void setSubscriptionMode(SubscriptionSetup.SubscriptionMode subscriptionMode) {
+    public void setSubscriptionMode(SubscriptionMode subscriptionMode) {
         this.subscriptionMode = subscriptionMode;
     }
 
@@ -298,14 +308,6 @@ public class Subscription implements Serializable {
         this.vehicleMonitoringRefValue = vehicleMonitoringRefValue;
     }
 
-    public Activity getActivity() {
-        return activity;
-    }
-
-    public void setActivity(Activity activity) {
-        this.activity = activity;
-    }
-
     public String toString() {
         return MessageFormat.format("[vendor={0}, subscriptionId={1}, internalId={2}]", vendor, subscriptionId, internalId);
     }
@@ -338,6 +340,14 @@ public class Subscription implements Serializable {
         }
         if (getOperatorNamespace() != null ? !getOperatorNamespace().equals(that.getOperatorNamespace()) : that.getOperatorNamespace() != null) {
             logger.info("getOperatorNamespace() does not match [{}] vs [{}]", getOperatorNamespace(), that.getOperatorNamespace());
+            return false;
+        }
+        if (!getUrlMap().equals(that.getUrlMap())) {
+            logger.info("getUrlMap() does not match [{}] vs [{}]", getUrlMap(), that.getUrlMap());
+            return false;
+        }
+        if (getAddress() != null ? !getAddress().equals(that.getAddress()) : that.getAddress() != null) {
+            logger.info("address does not match [{}] vs [{}]", address, that.address);
             return false;
         }
         if (!getVersion().equals(that.getVersion())) {
@@ -381,5 +391,27 @@ public class Subscription implements Serializable {
 
     public Map<RequestType, String> getUrlMap() {
         return urlMap;
+    }
+
+    public JSONObject toJSON() {
+        JSONObject obj = new JSONObject();
+        obj.put("internalId", getInternalId());
+        obj.put("vendor", getVendor());
+        obj.put("datasetId", getDatasetId());
+        obj.put("subscriptionId", getSubscriptionId());
+        obj.put("serviceType", getServiceType().toString());
+        obj.put("subscriptionType", getSubscriptionType().toString());
+        obj.put("subscriptionMode", getSubscriptionMode().toString());
+        obj.put("heartbeatInterval", getHeartbeatInterval() != null ? getHeartbeatInterval().toString():"");
+        obj.put("previewInterval", getPreviewInterval() != null ? getPreviewInterval().toString():"");
+        obj.put("updateInterval", getUpdateInterval() != null ? getUpdateInterval().toString():"");
+        obj.put("changeBeforeUpdates", getChangeBeforeUpdates() != null ? getChangeBeforeUpdates().toString():"");
+        obj.put("incrementalUpdates", getIncrementalUpdates() != null ? getIncrementalUpdates().toString():"");
+        obj.put("durationOfSubscription", getDurationOfSubscription().toString());
+        obj.put("requestorRef", getRequestorRef());
+        obj.put("inboundUrl", buildUrl(this, true));
+        obj.put("contentType", getContentType());
+
+        return obj;
     }
 }

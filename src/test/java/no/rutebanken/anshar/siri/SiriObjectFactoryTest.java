@@ -1,11 +1,16 @@
 package no.rutebanken.anshar.siri;
 
 import no.rutebanken.anshar.routes.siri.SiriObjectFactory;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.enums.ServiceType;
+import no.rutebanken.anshar.subscription.enums.SubscriptionMode;
+import no.rutebanken.anshar.subscription.enums.SubscriptionType;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import org.junit.Test;
 import uk.org.siri.siri20.*;
 
+import java.time.Duration;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
@@ -19,23 +24,23 @@ public class SiriObjectFactoryTest {
     @Test
     public void testCreateVMSubscription(){
 
-        SubscriptionSetup subscriptionSetup = createSubscriptionSetup(SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING,
-                SubscriptionSetup.SubscriptionMode.REQUEST_RESPONSE,
+        Subscription subscription = createSubscriptionSetup(SubscriptionType.VEHICLE_MONITORING,
+                SubscriptionMode.REQUEST_RESPONSE,
                 UUID.randomUUID().toString());
 
-        Siri vmSubscriptionRequest = SiriObjectFactory.createSubscriptionRequest(subscriptionSetup);
+        Siri vmSubscriptionRequest = SiriObjectFactory.createSubscriptionRequest(subscription);
         assertNotNull(vmSubscriptionRequest.getSubscriptionRequest());
         List<VehicleMonitoringSubscriptionStructure> subscriptionRequests = vmSubscriptionRequest.getSubscriptionRequest().getVehicleMonitoringSubscriptionRequests();
         assertNotNull(subscriptionRequests);
 
         assertTrue(subscriptionRequests.size() == 1);
 
-        VehicleMonitoringSubscriptionStructure subscription = subscriptionRequests.get(0);
-        assertNotNull(subscription.getSubscriptionIdentifier());
-        assertNotNull(subscription.getSubscriptionIdentifier().getValue());
-        assertEquals(subscriptionSetup.getSubscriptionId(), subscription.getSubscriptionIdentifier().getValue());
+        VehicleMonitoringSubscriptionStructure vmSubscription = subscriptionRequests.get(0);
+        assertNotNull(vmSubscription.getSubscriptionIdentifier());
+        assertNotNull(vmSubscription.getSubscriptionIdentifier().getValue());
+        assertEquals(subscription.getSubscriptionId(), vmSubscription.getSubscriptionIdentifier().getValue());
 
-        ZonedDateTime initialTerminationTime = subscription.getInitialTerminationTime();
+        ZonedDateTime initialTerminationTime = vmSubscription.getInitialTerminationTime();
 
         assertTrue("Initial terminationtime has not been calculated correctly", ZonedDateTime.now().plusHours(hoursUntilInitialTermination).minusMinutes(1).isBefore(initialTerminationTime));
         assertTrue("Initial terminationtime has not been calculated correctly", ZonedDateTime.now().plusHours(hoursUntilInitialTermination).plusMinutes(1).isAfter(initialTerminationTime));
@@ -45,11 +50,11 @@ public class SiriObjectFactoryTest {
     @Test
     public void testCreateVMServiceRequest(){
 
-        SubscriptionSetup subscriptionSetup = createSubscriptionSetup(SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING,
-                SubscriptionSetup.SubscriptionMode.REQUEST_RESPONSE,
+        Subscription subscription = createSubscriptionSetup(SubscriptionType.VEHICLE_MONITORING,
+                SubscriptionMode.REQUEST_RESPONSE,
                 UUID.randomUUID().toString());
 
-        Siri vmRequest = SiriObjectFactory.createServiceRequest(subscriptionSetup);
+        Siri vmRequest = SiriObjectFactory.createServiceRequest(subscription);
         assertNull(vmRequest.getSubscriptionRequest());
 
         assertNotNull(vmRequest.getServiceRequest());
@@ -66,11 +71,11 @@ public class SiriObjectFactoryTest {
     @Test
     public void testCreateSXSubscription(){
 
-        SubscriptionSetup subscriptionSetup = createSubscriptionSetup(SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE,
-                SubscriptionSetup.SubscriptionMode.REQUEST_RESPONSE,
+        Subscription subscription = createSubscriptionSetup(SubscriptionType.SITUATION_EXCHANGE,
+                SubscriptionMode.REQUEST_RESPONSE,
                 UUID.randomUUID().toString());
 
-        Siri sxSubscriptionRequest = SiriObjectFactory.createSubscriptionRequest(subscriptionSetup);
+        Siri sxSubscriptionRequest = SiriObjectFactory.createSubscriptionRequest(subscription);
         assertNotNull(sxSubscriptionRequest.getSubscriptionRequest());
 
         List<SituationExchangeSubscriptionStructure> subscriptionRequests = sxSubscriptionRequest.getSubscriptionRequest().getSituationExchangeSubscriptionRequests();
@@ -78,12 +83,12 @@ public class SiriObjectFactoryTest {
 
         assertTrue(subscriptionRequests.size() == 1);
 
-        SituationExchangeSubscriptionStructure subscription = subscriptionRequests.get(0);
-        assertNotNull(subscription.getSubscriptionIdentifier());
-        assertNotNull(subscription.getSubscriptionIdentifier().getValue());
-        assertEquals(subscriptionSetup.getSubscriptionId(), subscription.getSubscriptionIdentifier().getValue());
+        SituationExchangeSubscriptionStructure sxSubscription = subscriptionRequests.get(0);
+        assertNotNull(sxSubscription.getSubscriptionIdentifier());
+        assertNotNull(sxSubscription.getSubscriptionIdentifier().getValue());
+        assertEquals(subscription.getSubscriptionId(), sxSubscription.getSubscriptionIdentifier().getValue());
 
-        ZonedDateTime initialTerminationTime = subscription.getInitialTerminationTime();
+        ZonedDateTime initialTerminationTime = sxSubscription.getInitialTerminationTime();
 
         assertTrue("Initial terminationtime has not been calculated correctly", ZonedDateTime.now().plusHours(hoursUntilInitialTermination).minusMinutes(1).isBefore(initialTerminationTime));
         assertTrue("Initial terminationtime has not been calculated correctly", ZonedDateTime.now().plusHours(hoursUntilInitialTermination).plusMinutes(1).isAfter(initialTerminationTime));
@@ -95,20 +100,20 @@ public class SiriObjectFactoryTest {
     @Test
     public void testCreateSubscriptionCustomAddressfield(){
 
-        SubscriptionSetup sxSubscriptionSetup = createSubscriptionSetup(SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE,
-                SubscriptionSetup.SubscriptionMode.SUBSCRIBE,
+        Subscription sxSubscriptionSetup = createSubscriptionSetup(SubscriptionType.SITUATION_EXCHANGE,
+                SubscriptionMode.SUBSCRIBE,
                 UUID.randomUUID().toString());
 
-        SubscriptionSetup etSubscriptionSetup = createSubscriptionSetup(SubscriptionSetup.SubscriptionType.ESTIMATED_TIMETABLE,
-                SubscriptionSetup.SubscriptionMode.SUBSCRIBE,
+        Subscription etSubscriptionSetup = createSubscriptionSetup(SubscriptionType.ESTIMATED_TIMETABLE,
+                SubscriptionMode.SUBSCRIBE,
                 UUID.randomUUID().toString());
 
-        SubscriptionSetup vmSubscriptionSetup = createSubscriptionSetup(SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING,
-                SubscriptionSetup.SubscriptionMode.SUBSCRIBE,
+        Subscription vmSubscriptionSetup = createSubscriptionSetup(SubscriptionType.VEHICLE_MONITORING,
+                SubscriptionMode.SUBSCRIBE,
                 UUID.randomUUID().toString());
 
-        SubscriptionSetup ptSubscriptionSetup = createSubscriptionSetup(SubscriptionSetup.SubscriptionType.PRODUCTION_TIMETABLE,
-                SubscriptionSetup.SubscriptionMode.SUBSCRIBE,
+        Subscription ptSubscriptionSetup = createSubscriptionSetup(SubscriptionType.PRODUCTION_TIMETABLE,
+                SubscriptionMode.SUBSCRIBE,
                 UUID.randomUUID().toString());
 
         Siri sxSubscriptionRequest = SiriObjectFactory.createSubscriptionRequest(sxSubscriptionSetup);
@@ -151,11 +156,11 @@ public class SiriObjectFactoryTest {
     @Test
     public void testCreateSXServiceRequest(){
 
-        SubscriptionSetup subscriptionSetup = createSubscriptionSetup(SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE,
-                SubscriptionSetup.SubscriptionMode.REQUEST_RESPONSE,
+        Subscription subscription = createSubscriptionSetup(SubscriptionType.SITUATION_EXCHANGE,
+                SubscriptionMode.REQUEST_RESPONSE,
                 UUID.randomUUID().toString());
 
-        Siri sxRequest = SiriObjectFactory.createServiceRequest(subscriptionSetup);
+        Siri sxRequest = SiriObjectFactory.createServiceRequest(subscription);
         assertNull(sxRequest.getSubscriptionRequest());
 
         assertNotNull(sxRequest.getServiceRequest());
@@ -172,11 +177,11 @@ public class SiriObjectFactoryTest {
     @Test
     public void testCreateETSubscription(){
 
-        SubscriptionSetup subscriptionSetup = createSubscriptionSetup(SubscriptionSetup.SubscriptionType.ESTIMATED_TIMETABLE,
-                SubscriptionSetup.SubscriptionMode.REQUEST_RESPONSE,
+        Subscription subscription = createSubscriptionSetup(SubscriptionType.ESTIMATED_TIMETABLE,
+                SubscriptionMode.REQUEST_RESPONSE,
                 UUID.randomUUID().toString());
 
-        Siri vmSubscriptionRequest = SiriObjectFactory.createSubscriptionRequest(subscriptionSetup);
+        Siri vmSubscriptionRequest = SiriObjectFactory.createSubscriptionRequest(subscription);
         assertNotNull(vmSubscriptionRequest.getSubscriptionRequest());
 
         List<EstimatedTimetableSubscriptionStructure> subscriptionRequests = vmSubscriptionRequest.getSubscriptionRequest().getEstimatedTimetableSubscriptionRequests();
@@ -184,12 +189,12 @@ public class SiriObjectFactoryTest {
 
         assertTrue(subscriptionRequests.size() == 1);
 
-        EstimatedTimetableSubscriptionStructure subscription = subscriptionRequests.get(0);
-        assertNotNull(subscription.getSubscriptionIdentifier());
-        assertNotNull(subscription.getSubscriptionIdentifier().getValue());
-        assertEquals(subscriptionSetup.getSubscriptionId(), subscription.getSubscriptionIdentifier().getValue());
+        EstimatedTimetableSubscriptionStructure etSubscription = subscriptionRequests.get(0);
+        assertNotNull(etSubscription.getSubscriptionIdentifier());
+        assertNotNull(etSubscription.getSubscriptionIdentifier().getValue());
+        assertEquals(subscription.getSubscriptionId(), etSubscription.getSubscriptionIdentifier().getValue());
 
-        ZonedDateTime initialTerminationTime = subscription.getInitialTerminationTime();
+        ZonedDateTime initialTerminationTime = etSubscription.getInitialTerminationTime();
 
         assertTrue("Initial terminationtime has not been calculated correctly", ZonedDateTime.now().plusHours(hoursUntilInitialTermination).minusMinutes(1).isBefore(initialTerminationTime));
         assertTrue("Initial terminationtime has not been calculated correctly", ZonedDateTime.now().plusHours(hoursUntilInitialTermination).plusMinutes(1).isAfter(initialTerminationTime));
@@ -200,11 +205,11 @@ public class SiriObjectFactoryTest {
     @Test
     public void testCreateETServiceRequest(){
 
-        SubscriptionSetup subscriptionSetup = createSubscriptionSetup(SubscriptionSetup.SubscriptionType.ESTIMATED_TIMETABLE,
-                SubscriptionSetup.SubscriptionMode.REQUEST_RESPONSE,
+        Subscription subscription = createSubscriptionSetup(SubscriptionType.ESTIMATED_TIMETABLE,
+                SubscriptionMode.REQUEST_RESPONSE,
                 UUID.randomUUID().toString());
 
-        Siri etRequest = SiriObjectFactory.createServiceRequest(subscriptionSetup);
+        Siri etRequest = SiriObjectFactory.createServiceRequest(subscription);
         assertNull(etRequest.getSubscriptionRequest());
 
         assertNotNull(etRequest.getServiceRequest());
@@ -221,11 +226,11 @@ public class SiriObjectFactoryTest {
     @Test
     public void testCreatePTSubscription(){
 
-        SubscriptionSetup subscriptionSetup = createSubscriptionSetup(SubscriptionSetup.SubscriptionType.PRODUCTION_TIMETABLE,
-                SubscriptionSetup.SubscriptionMode.REQUEST_RESPONSE,
+        Subscription subscription = createSubscriptionSetup(SubscriptionType.PRODUCTION_TIMETABLE,
+                SubscriptionMode.REQUEST_RESPONSE,
                 UUID.randomUUID().toString());
 
-        Siri vmSubscriptionRequest = SiriObjectFactory.createSubscriptionRequest(subscriptionSetup);
+        Siri vmSubscriptionRequest = SiriObjectFactory.createSubscriptionRequest(subscription);
         assertNotNull(vmSubscriptionRequest.getSubscriptionRequest());
 
         List<ProductionTimetableSubscriptionRequest> subscriptionRequests = vmSubscriptionRequest.getSubscriptionRequest().getProductionTimetableSubscriptionRequests();
@@ -233,21 +238,21 @@ public class SiriObjectFactoryTest {
 
         assertTrue(subscriptionRequests.size() == 1);
 
-        ProductionTimetableSubscriptionRequest subscription = subscriptionRequests.get(0);
-        assertNotNull(subscription.getSubscriptionIdentifier());
-        assertNotNull(subscription.getSubscriptionIdentifier().getValue());
-        assertEquals(subscriptionSetup.getSubscriptionId(), subscription.getSubscriptionIdentifier().getValue());
+        ProductionTimetableSubscriptionRequest ptSubscription = subscriptionRequests.get(0);
+        assertNotNull(ptSubscription.getSubscriptionIdentifier());
+        assertNotNull(ptSubscription.getSubscriptionIdentifier().getValue());
+        assertEquals(subscription.getSubscriptionId(), ptSubscription.getSubscriptionIdentifier().getValue());
 
     }
 
     @Test
     public void testCreatePTServiceRequest(){
 
-        SubscriptionSetup subscriptionSetup = createSubscriptionSetup(SubscriptionSetup.SubscriptionType.PRODUCTION_TIMETABLE,
-                SubscriptionSetup.SubscriptionMode.REQUEST_RESPONSE,
+        Subscription subscription = createSubscriptionSetup(SubscriptionType.PRODUCTION_TIMETABLE,
+                SubscriptionMode.REQUEST_RESPONSE,
                 UUID.randomUUID().toString());
 
-        Siri ptRequest = SiriObjectFactory.createServiceRequest(subscriptionSetup);
+        Siri ptRequest = SiriObjectFactory.createServiceRequest(subscription);
         assertNull(ptRequest.getSubscriptionRequest());
 
         assertNotNull(ptRequest.getServiceRequest());
@@ -264,11 +269,11 @@ public class SiriObjectFactoryTest {
     @Test
     public void testCreateTerminateSubscriptionRequest(){
 
-        SubscriptionSetup subscriptionSetup = createSubscriptionSetup(SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING,
-                SubscriptionSetup.SubscriptionMode.REQUEST_RESPONSE,
+        Subscription subscription = createSubscriptionSetup(SubscriptionType.VEHICLE_MONITORING,
+                SubscriptionMode.REQUEST_RESPONSE,
                 UUID.randomUUID().toString());
 
-        Siri request = SiriObjectFactory.createTerminateSubscriptionRequest(subscriptionSetup);
+        Siri request = SiriObjectFactory.createTerminateSubscriptionRequest(subscription);
         assertNotNull(request);
     }
 
@@ -278,35 +283,35 @@ public class SiriObjectFactoryTest {
         Siri request = SiriObjectFactory.createTerminateSubscriptionRequest(null);
         assertNull(request);
 
-        SubscriptionSetup subscriptionSetup = createSubscriptionSetup(SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING,
-                SubscriptionSetup.SubscriptionMode.REQUEST_RESPONSE,
+        Subscription subscription = createSubscriptionSetup(SubscriptionType.VEHICLE_MONITORING,
+                SubscriptionMode.REQUEST_RESPONSE,
                 UUID.randomUUID().toString());
 
-        request = SiriObjectFactory.createTerminateSubscriptionRequest(subscriptionSetup);
+        request = SiriObjectFactory.createTerminateSubscriptionRequest(subscription);
         assertNotNull(request);
 
     }
 
-    private SubscriptionSetup createSubscriptionSetup(SubscriptionSetup.SubscriptionType type, SubscriptionSetup.SubscriptionMode mode, String subscriptionId) {
+    private Subscription createSubscriptionSetup(SubscriptionType type, SubscriptionMode mode, String subscriptionId) {
         return createSubscriptionSetup(type, mode, subscriptionId, "RutebankenDev");
     }
 
-    private SubscriptionSetup createSubscriptionSetup(SubscriptionSetup.SubscriptionType type, SubscriptionSetup.SubscriptionMode mode, String subscriptionId, String requestorRef) {
-        SubscriptionSetup subscriptionSetup = new SubscriptionSetup();
-        subscriptionSetup.setSubscriptionType(type);
-        subscriptionSetup.setSubscriptionMode(mode);
-        subscriptionSetup.setAddress("http://localhost");
-        subscriptionSetup.setHeartbeatIntervalSeconds(30);
-        subscriptionSetup.setOperatorNamespace("http://www.kolumbus.no/siri");
-        subscriptionSetup.setUrlMap(new HashMap<>());
-        subscriptionSetup.setVersion("1.4");
-        subscriptionSetup.setVendor("dumvm");
-        subscriptionSetup.setDatasetId("dum");
-        subscriptionSetup.setServiceType(SubscriptionSetup.ServiceType.SOAP);
-        subscriptionSetup.setSubscriptionId(subscriptionId);
-        subscriptionSetup.setRequestorRef(requestorRef);
-        subscriptionSetup.setDurationOfSubscriptionHours(hoursUntilInitialTermination);
-        subscriptionSetup.setActive(true);
-        return subscriptionSetup;
+    private Subscription createSubscriptionSetup(SubscriptionType type, SubscriptionMode mode, String subscriptionId, String requestorRef) {
+        Subscription subscription = new Subscription();
+        subscription.setSubscriptionType(type);
+        subscription.setSubscriptionMode(mode);
+        subscription.setAddress("http://localhost");
+        subscription.setHeartbeatInterval(Duration.of(30, ChronoUnit.SECONDS));
+        subscription.setOperatorNamespace("http://www.kolumbus.no/siri");
+        subscription.setUrlMap(new HashMap<>());
+        subscription.setVersion("1.4");
+        subscription.setVendor("dumvm");
+        subscription.setDatasetId("dum");
+        subscription.setServiceType(ServiceType.SOAP);
+        subscription.setSubscriptionId(subscriptionId);
+        subscription.setRequestorRef(requestorRef);
+        subscription.setDurationOfSubscription(Duration.of(hoursUntilInitialTermination, ChronoUnit.HOURS));
+        subscription.setActive(true);
+        return subscription;
     }
 }

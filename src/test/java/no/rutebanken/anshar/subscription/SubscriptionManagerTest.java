@@ -1,6 +1,10 @@
 package no.rutebanken.anshar.subscription;
 
 import no.rutebanken.anshar.App;
+import no.rutebanken.anshar.subscription.enums.ServiceType;
+import no.rutebanken.anshar.subscription.enums.SubscriptionMode;
+import no.rutebanken.anshar.subscription.enums.SubscriptionType;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.junit.Before;
@@ -18,13 +22,14 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.mock;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringBootTest(webEnvironment= SpringBootTest.WebEnvironment.MOCK, classes = App.class)
 public class SubscriptionManagerTest {
 
     @Autowired
-    private SubscriptionManager subscriptionManager;
+    private SubscriptionManager subscriptionManager = mock(SubscriptionManager.class);
 
     @Before
     public void setUp() {
@@ -34,9 +39,9 @@ public class SubscriptionManagerTest {
     @Test
     public void activeSubscriptionIsHealthy() throws InterruptedException {
         long subscriptionDurationSec = 1;
-        SubscriptionSetup subscriptionSoonToExpire = createSubscription(subscriptionDurationSec);
-        String subscriptionId = UUID.randomUUID().toString();
-        subscriptionManager.addSubscription(subscriptionId, subscriptionSoonToExpire);
+        Subscription subscriptionSoonToExpire = createSubscription(subscriptionDurationSec);
+        String subscriptionId = subscriptionSoonToExpire.getSubscriptionId();
+        subscriptionManager.addSubscription(subscriptionSoonToExpire);
         subscriptionManager.activatePendingSubscription(subscriptionId);
         subscriptionManager.touchSubscription(subscriptionId);
 
@@ -50,9 +55,10 @@ public class SubscriptionManagerTest {
     @Test
     public void activeSubscriptionNoHeartbeat() throws InterruptedException {
         long subscriptionDurationSec = 180;
-        SubscriptionSetup activeSubscription = createSubscription(subscriptionDurationSec, Duration.ofMillis(150));
-        String subscriptionId = UUID.randomUUID().toString();;
-        subscriptionManager.addSubscription(subscriptionId, activeSubscription);
+        Subscription activeSubscription = createSubscription(subscriptionDurationSec, Duration.ofMillis(150));
+        String subscriptionId = activeSubscription.getSubscriptionId();
+
+        subscriptionManager.addSubscription(activeSubscription);
         subscriptionManager.activatePendingSubscription(subscriptionId);
         subscriptionManager.touchSubscription(subscriptionId);
 
@@ -66,10 +72,10 @@ public class SubscriptionManagerTest {
     @Test
     public void pendingSubscriptionIsHealthy() throws InterruptedException {
         long subscriptionDurationSec = 1;
-        SubscriptionSetup pendingSubscription = createSubscription(subscriptionDurationSec, Duration.ofMillis(150));
+        Subscription pendingSubscription = createSubscription(subscriptionDurationSec, Duration.ofMillis(150));
         pendingSubscription.setActive(false);
-        String subscriptionId = UUID.randomUUID().toString();;
-        subscriptionManager.addSubscription(subscriptionId, pendingSubscription);
+        String subscriptionId = pendingSubscription.getSubscriptionId();
+        subscriptionManager.addSubscription(pendingSubscription);
 
         subscriptionManager.activatePendingSubscription(subscriptionId);
         subscriptionManager.touchSubscription(subscriptionId);
@@ -85,10 +91,12 @@ public class SubscriptionManagerTest {
     public void notStartedSubscriptionIsHealthy() throws InterruptedException {
 
         long subscriptionDurationSec = 1;
-        SubscriptionSetup pendingSubscription = createSubscription(subscriptionDurationSec, Duration.ofMillis(150));
+        Subscription pendingSubscription = createSubscription(subscriptionDurationSec, Duration.ofMillis(150));
         pendingSubscription.setActive(false);
-        String subscriptionId = UUID.randomUUID().toString();;
-        subscriptionManager.addSubscription(subscriptionId, pendingSubscription);
+
+        String subscriptionId = pendingSubscription.getSubscriptionId();
+
+        subscriptionManager.addSubscription(pendingSubscription);
 
         assertTrue(subscriptionManager.isSubscriptionHealthy(subscriptionId));
 
@@ -100,8 +108,8 @@ public class SubscriptionManagerTest {
     @Test
     public void testCheckStatusResponseOK() throws InterruptedException {
         long subscriptionDurationSec = 180;
-        SubscriptionSetup subscription = createSubscription(subscriptionDurationSec);
-        subscriptionManager.addSubscription(subscription.getSubscriptionId(), subscription);
+        Subscription subscription = createSubscription(subscriptionDurationSec);
+        subscriptionManager.addSubscription(subscription);
         subscriptionManager.activatePendingSubscription(subscription.getSubscriptionId());
 
         ZonedDateTime serviceStartedTime = ZonedDateTime.now().minusMinutes(1);
@@ -117,9 +125,9 @@ public class SubscriptionManagerTest {
 
     @Test
     public void testAddSubscription() {
-        SubscriptionSetup subscription = createSubscription(1);
+        Subscription subscription = createSubscription(1);
         assertFalse("Subscription already marked as registered", subscriptionManager.isSubscriptionRegistered(subscription.getSubscriptionId()));
-        subscriptionManager.addSubscription(subscription.getSubscriptionId(), subscription);
+        subscriptionManager.addSubscription(subscription);
         subscriptionManager.activatePendingSubscription(subscription.getSubscriptionId());
 
         assertTrue("Subscription not marked as registered", subscriptionManager.isSubscriptionRegistered(subscription.getSubscriptionId()));
@@ -131,11 +139,11 @@ public class SubscriptionManagerTest {
 
     @Test
     public void testAddAndActivatePendingSubscription() {
-        SubscriptionSetup subscription = createSubscription(1);
+        Subscription subscription = createSubscription(1);
         assertFalse("Unknown subscription has been found",subscriptionManager.isSubscriptionRegistered(subscription.getSubscriptionId()));
         subscription.setActive(false);
 
-        subscriptionManager.addSubscription(subscription.getSubscriptionId(), subscription);
+        subscriptionManager.addSubscription(subscription);
 
         assertNotNull("Pending subscription not found", subscriptionManager.get(subscription.getSubscriptionId()));
 
@@ -154,11 +162,11 @@ public class SubscriptionManagerTest {
 
     @Test
     public void testAddAndTouchPendingSubscription() {
-        SubscriptionSetup subscription = createSubscription(1);
+        Subscription subscription = createSubscription(1);
         subscription.setActive(false);
         assertFalse(subscriptionManager.isSubscriptionRegistered(subscription.getSubscriptionId()));
 
-        subscriptionManager.addSubscription(subscription.getSubscriptionId(), subscription);
+        subscriptionManager.addSubscription(subscription);
 
         assertTrue("Subscription not marked as registered", subscriptionManager.isSubscriptionRegistered(subscription.getSubscriptionId()));
         assertFalse("Subscription marked as active", subscriptionManager.isActiveSubscription(subscription.getSubscriptionId()));
@@ -173,10 +181,10 @@ public class SubscriptionManagerTest {
 
     @Test
     public void testRemoveSubscription() {
-        SubscriptionSetup subscription = createSubscription(1);
+        Subscription subscription = createSubscription(1);
         assertFalse(subscriptionManager.isSubscriptionRegistered(subscription.getSubscriptionId()));
 
-        subscriptionManager.addSubscription(subscription.getSubscriptionId(), subscription);
+        subscriptionManager.addSubscription(subscription);
         subscriptionManager.activatePendingSubscription(subscription.getSubscriptionId());
 
         assertTrue("Subscription not registered", subscriptionManager.isSubscriptionRegistered(subscription.getSubscriptionId()));
@@ -188,10 +196,10 @@ public class SubscriptionManagerTest {
 
     @Test
     public void testForceRemoveSubscription() {
-        SubscriptionSetup subscription = createSubscription(1);
+        Subscription subscription = createSubscription(1);
         assertFalse(subscriptionManager.isSubscriptionRegistered(subscription.getSubscriptionId()));
 
-        subscriptionManager.addSubscription(subscription.getSubscriptionId(), subscription);
+        subscriptionManager.addSubscription(subscription);
         subscriptionManager.activatePendingSubscription(subscription.getSubscriptionId());
 
         subscriptionManager.removeSubscription(subscription.getSubscriptionId(), true);
@@ -200,10 +208,10 @@ public class SubscriptionManagerTest {
 
     @Test
     public void testStatsObjectCounterHugeNumber() {
-        SubscriptionSetup subscription = createSubscription(1);
+        Subscription subscription = createSubscription(1);
         assertFalse(subscriptionManager.isSubscriptionRegistered(subscription.getSubscriptionId()));
 
-        subscriptionManager.addSubscription(subscription.getSubscriptionId(), subscription);
+        subscriptionManager.addSubscription(subscription);
         subscriptionManager.activatePendingSubscription(subscription.getSubscriptionId());
 
         for (int i = 0; i < 10; i++) {
@@ -231,10 +239,10 @@ public class SubscriptionManagerTest {
 
     @Test
     public void testStatByteCounter() {
-        SubscriptionSetup subscription = createSubscription(1);
+        Subscription subscription = createSubscription(1);
         assertFalse(subscriptionManager.isSubscriptionRegistered(subscription.getSubscriptionId()));
 
-        subscriptionManager.addSubscription(subscription.getSubscriptionId(), subscription);
+        subscriptionManager.addSubscription(subscription);
         subscriptionManager.activatePendingSubscription(subscription.getSubscriptionId());
 
         int sum = 0;
@@ -271,12 +279,12 @@ public class SubscriptionManagerTest {
 
     @Test
     public void testAddSubscriptionAndReceivingData() {
-        SubscriptionSetup subscription = createSubscription(1000);
+        Subscription subscription = createSubscription(1000);
         subscription.setVendor("VIPVendor");
         subscription.setActive(true);
 
         String subscriptionId = subscription.getSubscriptionId();
-        subscriptionManager.addSubscription(subscriptionId, subscription);
+        subscriptionManager.addSubscription(subscription);
         assertTrue(subscriptionManager.isSubscriptionHealthy(subscriptionId));
         subscriptionManager.dataReceived(subscriptionId);
 
@@ -292,31 +300,31 @@ public class SubscriptionManagerTest {
         assertTrue(allUnhealthySubscriptions_2.contains(subscription.getVendor()));
     }
 
-    private SubscriptionSetup createSubscription(long initialDuration) {
+    private Subscription createSubscription(long initialDuration) {
         return createSubscription(initialDuration, Duration.ofMinutes(4));
     }
 
-    private SubscriptionSetup createSubscription(long initialDuration, Duration heartbeatInterval) {
-        SubscriptionSetup sub = new SubscriptionSetup(
-                SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE,
-                SubscriptionSetup.SubscriptionMode.SUBSCRIBE,
-                "http://localhost",
-                heartbeatInterval,
-                Duration.ofHours(1),
-                "http://www.kolumbus.no/siri",
-                new HashMap<>(),
-                "1.4",
-                "SwarcoMizar",
-                "tst",
-                SubscriptionSetup.ServiceType.SOAP,
-                new ArrayList<>(),
-                new HashMap<>(),
-                new ArrayList<>(),
-                UUID.randomUUID().toString(),
-                "RutebankenDEV",
-                Duration.ofSeconds(initialDuration),
-                true
-        );
+    private Subscription createSubscription(long initialDuration, Duration heartbeatInterval) {
+        Subscription sub = new Subscription();
+        sub.setSubscriptionType(SubscriptionType.SITUATION_EXCHANGE);
+        sub.setSubscriptionMode(SubscriptionMode.SUBSCRIBE);
+        sub.setAddress("http://localhost");
+        sub.setHeartbeatInterval(heartbeatInterval);
+        sub.setUpdateInterval(Duration.ofSeconds(1));
+        sub.setOperatorNamespace("http://www.kolumbus.no/siri");
+        sub.setUrlMap(new HashMap<>());
+        sub.setVersion("1.4");
+        sub.setVendor("SwarcoMizar");
+        sub.setDatasetId("tst");
+        sub.setServiceType(ServiceType.SOAP);
+        sub.setMappingAdapters(new ArrayList<>());
+        sub.setFilterMapPreset(null);
+        sub.setIdMappingPrefixes(new ArrayList<String>());
+        sub.setSubscriptionId(UUID.randomUUID().toString());
+        sub.setRequestorRef("RutebankenDEV");
+        sub.setDurationOfSubscription(Duration.ofSeconds(initialDuration));
+        sub.setActive(true);
+
         return sub;
     }
 }

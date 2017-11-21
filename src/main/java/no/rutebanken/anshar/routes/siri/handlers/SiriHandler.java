@@ -12,7 +12,8 @@ import no.rutebanken.anshar.routes.siri.SiriObjectFactory;
 import no.rutebanken.anshar.routes.siri.transformer.SiriValueTransformer;
 import no.rutebanken.anshar.subscription.MappingAdapterPresets;
 import no.rutebanken.anshar.subscription.SubscriptionManager;
-import no.rutebanken.anshar.subscription.SubscriptionSetup;
+import no.rutebanken.anshar.subscription.enums.SubscriptionType;
+import no.rutebanken.anshar.subscription.models.Subscription;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -178,17 +179,17 @@ public class SiriHandler {
      */
     private Siri processSiriClientRequest(String subscriptionId, InputStream xml)
             throws JAXBException, XMLStreamException {
-        SubscriptionSetup subscriptionSetup = subscriptionManager.get(subscriptionId);
+        Subscription subscription = subscriptionManager.get(subscriptionId);
 
-        if (subscriptionSetup != null) {
+        if (subscription != null) {
 
-            Siri incoming = SiriValueTransformer.parseXml(xml, subscriptionSetup.getMappingAdapters());
+            Siri incoming = SiriValueTransformer.parseXml(xml, subscription.getMappingAdapters());
 
             if (incoming.getHeartbeatNotification() != null) {
                 subscriptionManager.touchSubscription(subscriptionId);
-                logger.info("Heartbeat - {}", subscriptionSetup);
+                logger.info("Heartbeat - {}", subscription);
             } else if (incoming.getCheckStatusResponse() != null) {
-                logger.info("Incoming CheckStatusResponse [{}], reporting ServiceStartedTime: {}", subscriptionSetup, incoming.getCheckStatusResponse().getServiceStartedTime());
+                logger.info("Incoming CheckStatusResponse [{}], reporting ServiceStartedTime: {}", subscription, incoming.getCheckStatusResponse().getServiceStartedTime());
                 subscriptionManager.touchSubscription(subscriptionId, incoming.getCheckStatusResponse().getServiceStartedTime());
             } else if (incoming.getSubscriptionResponse() != null) {
                 SubscriptionResponseStructure subscriptionResponse = incoming.getSubscriptionResponse();
@@ -201,7 +202,7 @@ public class SiriHandler {
             } else if (incoming.getTerminateSubscriptionResponse() != null) {
                 TerminateSubscriptionResponseStructure terminateSubscriptionResponse = incoming.getTerminateSubscriptionResponse();
 
-                logger.info("Subscription terminated {}", subscriptionSetup);
+                logger.info("Subscription terminated {}", subscription);
 
             } else if (incoming.getDataReadyNotification() != null) {
                 //Handled using camel routing
@@ -209,9 +210,9 @@ public class SiriHandler {
                 boolean deliveryContainsData = false;
                 healthManager.dataReceived();
 
-                if (subscriptionSetup.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.SITUATION_EXCHANGE)) {
+                if (subscription.getSubscriptionType().equals(SubscriptionType.SITUATION_EXCHANGE)) {
                     List<SituationExchangeDeliveryStructure> situationExchangeDeliveries = incoming.getServiceDelivery().getSituationExchangeDeliveries();
-                    logger.info("Got SX-delivery: Subscription [{}]", subscriptionSetup);
+                    logger.info("Got SX-delivery: Subscription [{}]", subscription);
 
                     List<PtSituationElement> addedOrUpdated = new ArrayList<>();
                     if (situationExchangeDeliveries != null) {
@@ -220,7 +221,7 @@ public class SiriHandler {
                                         logger.info(getErrorContents(sx.getErrorCondition()));
                                     } else {
                                         addedOrUpdated.addAll(
-                                                situations.addAll(subscriptionSetup.getDatasetId(), sx.getSituations().getPtSituationElements())
+                                                situations.addAll(subscription.getDatasetId(), sx.getSituations().getPtSituationElements())
                                         );
                                     }
                                 }
@@ -228,15 +229,15 @@ public class SiriHandler {
                     }
                     deliveryContainsData = deliveryContainsData | (addedOrUpdated.size() > 0);
 
-                    serverSubscriptionManager.pushUpdatedSituations(addedOrUpdated, subscriptionSetup.getDatasetId());
+                    serverSubscriptionManager.pushUpdatedSituations(addedOrUpdated, subscription.getDatasetId());
 
-                    subscriptionManager.incrementObjectCounter(subscriptionSetup, addedOrUpdated.size());
+                    subscriptionManager.incrementObjectCounter(subscription, addedOrUpdated.size());
 
-                    logger.info("Active SX-elements: {}, current delivery: {}, {}", situations.getSize(), addedOrUpdated.size(), subscriptionSetup);
+                    logger.info("Active SX-elements: {}, current delivery: {}, {}", situations.getSize(), addedOrUpdated.size(), subscription);
                 }
-                if (subscriptionSetup.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.VEHICLE_MONITORING)) {
+                if (subscription.getSubscriptionType().equals(SubscriptionType.VEHICLE_MONITORING)) {
                     List<VehicleMonitoringDeliveryStructure> vehicleMonitoringDeliveries = incoming.getServiceDelivery().getVehicleMonitoringDeliveries();
-                    logger.info("Got VM-delivery: Subscription [{}]", subscriptionSetup);
+                    logger.info("Got VM-delivery: Subscription [{}]", subscription);
 
                     List<VehicleActivityStructure> addedOrUpdated = new ArrayList<>();
                     if (vehicleMonitoringDeliveries != null) {
@@ -245,7 +246,7 @@ public class SiriHandler {
                                         logger.info(getErrorContents(vm.getErrorCondition()));
                                     } else {
                                         addedOrUpdated.addAll(
-                                                vehicleActivities.addAll(subscriptionSetup.getDatasetId(), vm.getVehicleActivities())
+                                                vehicleActivities.addAll(subscription.getDatasetId(), vm.getVehicleActivities())
                                         );
                                     }
                                 }
@@ -253,15 +254,15 @@ public class SiriHandler {
                     }
 
                     deliveryContainsData = deliveryContainsData | (addedOrUpdated.size() > 0);
-                    serverSubscriptionManager.pushUpdatedVehicleActivities(addedOrUpdated, subscriptionSetup.getDatasetId());
+                    serverSubscriptionManager.pushUpdatedVehicleActivities(addedOrUpdated, subscription.getDatasetId());
 
-                    subscriptionManager.incrementObjectCounter(subscriptionSetup, addedOrUpdated.size());
+                    subscriptionManager.incrementObjectCounter(subscription, addedOrUpdated.size());
 
-                    logger.info("Active VM-elements: {}, current delivery: {}, {}", vehicleActivities.getSize(), addedOrUpdated.size(), subscriptionSetup);
+                    logger.info("Active VM-elements: {}, current delivery: {}, {}", vehicleActivities.getSize(), addedOrUpdated.size(), subscription);
                 }
-                if (subscriptionSetup.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.ESTIMATED_TIMETABLE)) {
+                if (subscription.getSubscriptionType().equals(SubscriptionType.ESTIMATED_TIMETABLE)) {
                     List<EstimatedTimetableDeliveryStructure> estimatedTimetableDeliveries = incoming.getServiceDelivery().getEstimatedTimetableDeliveries();
-                    logger.info("Got ET-delivery: Subscription {}", subscriptionSetup);
+                    logger.info("Got ET-delivery: Subscription {}", subscription);
 
                     List<EstimatedVehicleJourney> addedOrUpdated = new ArrayList<>();
                     if (estimatedTimetableDeliveries != null) {
@@ -271,7 +272,7 @@ public class SiriHandler {
                                     } else {
                                         et.getEstimatedJourneyVersionFrames().forEach(versionFrame -> {
                                             addedOrUpdated.addAll(
-                                                    estimatedTimetables.addAll(subscriptionSetup.getDatasetId(), versionFrame.getEstimatedVehicleJourneies())
+                                                    estimatedTimetables.addAll(subscription.getDatasetId(), versionFrame.getEstimatedVehicleJourneies())
                                             );
                                         });
                                     }
@@ -280,29 +281,29 @@ public class SiriHandler {
                     }
 
                     deliveryContainsData = deliveryContainsData | (addedOrUpdated.size() > 0);
-                    serverSubscriptionManager.pushUpdatedEstimatedTimetables(addedOrUpdated, subscriptionSetup.getDatasetId());
+                    serverSubscriptionManager.pushUpdatedEstimatedTimetables(addedOrUpdated, subscription.getDatasetId());
 
-                    subscriptionManager.incrementObjectCounter(subscriptionSetup, addedOrUpdated.size());
+                    subscriptionManager.incrementObjectCounter(subscription, addedOrUpdated.size());
 
-                    logger.info("Active ET-elements: {}, current delivery: {}, {}", estimatedTimetables.getSize(), addedOrUpdated.size(), subscriptionSetup);
+                    logger.info("Active ET-elements: {}, current delivery: {}, {}", estimatedTimetables.getSize(), addedOrUpdated.size(), subscription);
                 }
-                if (subscriptionSetup.getSubscriptionType().equals(SubscriptionSetup.SubscriptionType.PRODUCTION_TIMETABLE)) {
+                if (subscription.getSubscriptionType().equals(SubscriptionType.PRODUCTION_TIMETABLE)) {
                     List<ProductionTimetableDeliveryStructure> productionTimetableDeliveries = incoming.getServiceDelivery().getProductionTimetableDeliveries();
-                    logger.info("Got PT-delivery: Subscription [{}]", subscriptionSetup);
+                    logger.info("Got PT-delivery: Subscription [{}]", subscription);
                     List<ProductionTimetableDeliveryStructure> addedOrUpdated = new ArrayList<>();
 
                     if (productionTimetableDeliveries != null) {
                         addedOrUpdated.addAll(
-                                productionTimetables.addAll(subscriptionSetup.getDatasetId(), productionTimetableDeliveries)
+                                productionTimetables.addAll(subscription.getDatasetId(), productionTimetableDeliveries)
                         );
                     }
 
                     deliveryContainsData = deliveryContainsData | (addedOrUpdated.size() > 0);
-                    serverSubscriptionManager.pushUpdatedProductionTimetables(addedOrUpdated, subscriptionSetup.getDatasetId());
+                    serverSubscriptionManager.pushUpdatedProductionTimetables(addedOrUpdated, subscription.getDatasetId());
 
-                    subscriptionManager.incrementObjectCounter(subscriptionSetup, addedOrUpdated.size());
+                    subscriptionManager.incrementObjectCounter(subscription, addedOrUpdated.size());
 
-                    logger.info("Active PT-elements: {}, current delivery: {}, {}", productionTimetables.getSize(), addedOrUpdated.size(), subscriptionSetup);
+                    logger.info("Active PT-elements: {}, current delivery: {}, {}", productionTimetables.getSize(), addedOrUpdated.size(), subscription);
                 }
 
 

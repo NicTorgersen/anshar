@@ -144,7 +144,7 @@ anshar:
       version: 2.0
       contentType: text/xml;charset=UTF-8
       subscriptionId: ${random.uuid}
-      requestorRef: RutebankenDEV_${random.uuid}
+      requestorRef: ENTUR
       durationOfSubscriptionHours: 2
       mappingAdapterId: banenoret
       filterPresets:
@@ -224,12 +224,12 @@ anshar:
       active: false
     -
       internalId: 101
-      vendor: internRuterEt
-      datasetId: RUT
+      vendor: internEt
+      datasetId: TST
       serviceType: REST
       subscriptionType: ESTIMATED_TIMETABLE
       subscriptionMode: REQUEST_RESPONSE
-      heartbeatIntervalSeconds: 60
+      heartbeatIntervalSeconds: 20
       previewIntervalSeconds: 86400
       updateIntervalSeconds: 1
       operatorNamespace: http://www.siri.org.uk/siri
@@ -237,13 +237,13 @@ anshar:
       soapenvNamespace:
       incrementalUpdates:
       urlMap:
-        GET_ESTIMATED_TIMETABLE: https4://api-test.entur.org/anshar/1.0/anshar/services/RUT?useOriginalId=true
+        GET_ESTIMATED_TIMETABLE: https4://api.entur.org/anshar/1.0/anshar/services/RUT?useOriginalId=true
       version: 2.0
       contentType: text/xml;charset=UTF-8
-      subscriptionId: et-replication-req
-      requestorRef: et-requestorref-req
+      subscriptionId:  et-test
+      requestorRef:  et-test
       durationOfSubscriptionHours: 24
-      mappingAdapterId: ruter
+      mappingAdapterId: nsr
       filterPresets:
       idMappingPrefixes: RUT,OPP,BRA,OST
       active: false
@@ -268,19 +268,45 @@ anshar:
       subscriptionId: sx-replication
       requestorRef: sx-requestorref
       durationOfSubscriptionHours: 1
-      mappingAdapterId: ruter
+      mappingAdapterId: brakar
       filterPresets:
       idMappingPrefixes: RUT,OPP,BRA,OST
       active: false
     -
       internalId: 999
-      vendor: dummy
-      datasetId: BRA
+      vendor: dummyet
+      datasetId: BNR
       serviceType: REST
       subscriptionType: ESTIMATED_TIMETABLE
       subscriptionMode: SUBSCRIBE
-      heartbeatIntervalSeconds: 6000
-      previewIntervalSeconds: 86400
+      heartbeatIntervalSeconds: 6000000
+      previewIntervalSeconds: 8640000
+      updateIntervalSeconds: 1
+      operatorNamespace: http://www.siri.org.uk/siri
+      addressFieldName:
+      soapenvNamespace:
+      incrementalUpdates:
+      urlMap:
+        SUBSCRIBE: local/siri/et
+        DELETE_SUBSCRIPTION: local/siri/et
+      version: 2.0
+      contentType: text/xml;charset=UTF-8
+      subscriptionId: dummyet
+      requestorRef: dummy
+      durationOfSubscriptionHours: 1
+      mappingAdapterId: banenoret
+      filterPresets:
+      idMappingPrefixes: NSB,FLT
+      active: false
+    -
+      internalId: 998
+      vendor: dummysx
+      datasetId: NSB
+      serviceType: REST
+      subscriptionType: SITUATION_EXCHANGE
+      subscriptionMode: SUBSCRIBE
+      heartbeatIntervalSeconds: 6000000
+      previewIntervalSeconds: 8640000
       updateIntervalSeconds: 1
       operatorNamespace: http://www.siri.org.uk/siri
       addressFieldName:
@@ -291,10 +317,10 @@ anshar:
         DELETE_SUBSCRIPTION: local/siri/sx
       version: 2.0
       contentType: text/xml;charset=UTF-8
-      subscriptionId: dummy
+      subscriptionId: dummysx
       requestorRef: dummy
       durationOfSubscriptionHours: 1
-      mappingAdapterId: brakar
+      mappingAdapterId: nsbsx
       filterPresets:
-      idMappingPrefixes: BRA
+      idMappingPrefixes: NSB
       active: true
