@@ -68,6 +68,11 @@ public class ProtostuffTest {
 
         System.out.println("Deserialized from protobuf in  " + (System.currentTimeMillis() - serializeBack) + " ms");
 
+        long serializeBackFromFile = System.currentTimeMillis();
+        Siri siriFromDisk = schema.newMessage();
+        GraphIOUtil.mergeFrom(new BufferedInputStream(new FileInputStream(new File("protostuff.file"))), siriFromDisk, schema);
+        System.out.println("Deserialized from protobuf FILE in  " + (System.currentTimeMillis() - serializeBackFromFile) + " ms");
+
         compareXmlStrings(siriWasProtostuffed, siri);
     }
 
