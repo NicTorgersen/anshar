@@ -22,6 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class ProtostuffTest {
 
+    private JAXBContext jaxbContext = JAXBContext.newInstance(Siri.class);
+    private Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
+
+    public ProtostuffTest() throws JAXBException {
+    }
+
     @Test
     public void protoStuffTest() throws IOException, JAXBException, XMLStreamException, SAXException {
 
@@ -73,8 +79,7 @@ public class ProtostuffTest {
     }
 
     private String xmlify(Siri siri) throws JAXBException, IOException, SAXException {
-        JAXBContext jaxbContext = JAXBContext.newInstance(Siri.class);
-        Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
+
         jaxbMarshaller.setProperty(Marshaller.JAXB_FRAGMENT, Boolean.TRUE);
         jaxbMarshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
