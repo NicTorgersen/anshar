@@ -44,7 +44,8 @@ public class ProtostuffTest {
         byte[] protostuff = GraphIOUtil.toByteArray(siri, schema, buffer);
 
         buffer.clear();
-        System.out.println("Written to protostuff in  " + (System.currentTimeMillis() - bufferStarted) + " ms");
+
+        System.out.println("Written to protostuff bya in  " + (System.currentTimeMillis() - bufferStarted) + " ms");
 
         System.out.println("The byte array length is " + protostuff.length);
         long beforeWrite = System.currentTimeMillis();
@@ -62,7 +63,10 @@ public class ProtostuffTest {
     }
 
     private void compareXmlStrings(Siri actual, Siri expected) throws JAXBException, IOException, SAXException {
+        long started = System.currentTimeMillis();
         String actualXml = xmlify(actual);
+        System.out.println("Marshalled siri to netex string in " + (System.currentTimeMillis() - started) + " ms");
+
         String expectedXml = xmlify(expected);
 
         assertThat(actualXml).isEqualTo(expectedXml);
