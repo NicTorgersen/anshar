@@ -25,6 +25,8 @@ public class ProtostuffTest {
     private JAXBContext jaxbContext = JAXBContext.newInstance(Siri.class);
     private Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
 
+    private Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
+
     public ProtostuffTest() throws JAXBException {
     }
 
@@ -36,8 +38,9 @@ public class ProtostuffTest {
         // System.setProperty("protostuff.runtime.collection_schema_on_repeated_fields", "true");
         // System.setProperty("protostuff.runtime.morph_non_final_pojos", "true");
 
+        long unmarshalSiriTime = System.currentTimeMillis();
         Siri siri = unmarshallSiriFile("src/test/resources/siriAfterBaneNorSiriEtRewriting.xml");
-
+        System.out.println("Spent " + (System.currentTimeMillis() - unmarshalSiriTime) + "ms unmarshalling test file");
 
         long schemaStarted = System.currentTimeMillis();
         Schema<Siri> schema = RuntimeSchema.getSchema(Siri.class);
@@ -88,9 +91,8 @@ public class ProtostuffTest {
     }
 
 
-    static Siri unmarshallSiriFile(String filename) throws JAXBException, XMLStreamException, FileNotFoundException {
-        JAXBContext jaxbContext = JAXBContext.newInstance(Siri.class);
-        Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
+    private Siri unmarshallSiriFile(String filename) throws JAXBException, XMLStreamException, FileNotFoundException {
+
         XMLInputFactory xmlif = XMLInputFactory.newInstance();
         FileInputStream xml = new FileInputStream(filename);
         XMLStreamReader xmlsr = xmlif.createXMLStreamReader(xml);
