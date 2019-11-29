@@ -29,22 +29,18 @@ public class MessagingRoute extends RestRouteBuilder {
     @Autowired
     private SubscriptionManager subscriptionManager;
 
-
-
-    public static final String MESSAGE_QUEUE_HEADER_NAME = "messageQueueName";
-
     @Override
     public void configure() throws Exception {
 
-        String messageQueueCamelRouteName = configuration.getMessageQueueCamelRoutePrefix();
+        String messageQueueCamelRoutePrefix = configuration.getMessageQueueCamelRoutePrefix();
 
         Namespaces ns = new Namespaces("siri", "http://www.siri.org.uk/siri")
                 .add("xsd", "http://www.w3.org/2001/XMLSchema");
 
-        String activeMQParameters = (messageQueueCamelRouteName.startsWith("activemq") ? "?disableReplyTo=true&timeToLive="+ configuration.getTimeToLive():"");
-        String activeMqConsumerParameters = (messageQueueCamelRouteName.startsWith("activemq") ? "?asyncConsumer=true&concurrentConsumers="+ configuration.getConcurrentConsumers():"");
+        String activeMQParameters = (messageQueueCamelRoutePrefix.startsWith("activemq") ? "?disableReplyTo=true&timeToLive="+ configuration.getTimeToLive():"");
+        String activeMqConsumerParameters = (messageQueueCamelRoutePrefix.startsWith("activemq") ? "?asyncConsumer=true&concurrentConsumers="+ configuration.getConcurrentConsumers():"");
 
-        final String pubsubQueueName = messageQueueCamelRouteName + CamelRouteNames.TRANSFORM_QUEUE;
+        final String pubsubQueueName = messageQueueCamelRoutePrefix + CamelRouteNames.TRANSFORM_QUEUE;
 
         from("direct:enqueue.message")
                 .to("xslt:xsl/split.xsl")
