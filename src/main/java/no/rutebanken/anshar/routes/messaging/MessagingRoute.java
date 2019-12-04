@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
 
-import static no.rutebanken.anshar.routes.HttpParameter.PARAM_PATH;
 import static no.rutebanken.anshar.routes.HttpParameter.PARAM_USE_ORIGINAL_ID;
 import static no.rutebanken.anshar.routes.siri.Siri20RequestHandlerRoute.TRANSFORM_SOAP;
 import static no.rutebanken.anshar.routes.siri.Siri20RequestHandlerRoute.TRANSFORM_VERSION;
@@ -43,21 +42,30 @@ public class MessagingRoute extends RestRouteBuilder {
         final String pubsubQueueName = messageQueueCamelRoutePrefix + CamelRouteNames.TRANSFORM_QUEUE;
 
         from("direct:enqueue.message")
-                .to("xslt:xsl/split.xsl")
-                .split().tokenizeXML("Siri").streaming()
-                .to("direct:map.jaxb.to.protobuf")
+                .process(p -> { // Remove lots of unecessary headers
+                    p.getOut().setBody(p.getIn().getBody());
+                    p.getOut().setHeader("subscriptionId", p.getIn().getHeader("subscriptionId"));
+                })
+//                .to("xslt:xsl/split.xsl")
+//                .split().tokenizeXML("Siri").streaming()
+                .to("direct:compress.jaxb")
+//                .to("direct:map.jaxb.to.protobuf")
                 .to(pubsubQueueName + activeMQParameters)
         ;
 
         from(pubsubQueueName + activeMqConsumerParameters)
-                .to("direct:map.protobuf.to.jaxb")
+                .to("direct:decompress.jaxb")
+//                .to("direct:map.protobuf.to.jaxb")
+                .log("Processing data from " + pubsubQueueName)
                 .choice()
                     .when(header(TRANSFORM_SOAP).isEqualTo(simple(TRANSFORM_SOAP)))
+                        .log("Transforming SOAP")
                         .to("xslt:xsl/siri_soap_raw.xsl?saxon=true&allowStAX=false&resultHandlerFactory=#streamResultHandlerFactory") // Extract SOAP version and convert to raw SIRI
                     .endChoice()
                 .end()
                 .choice()
                     .when(header(TRANSFORM_VERSION).isEqualTo(simple(TRANSFORM_VERSION)))
+                        .log("Transforming version")
                         .to("xslt:xsl/siri_14_20.xsl?saxon=true&allowStAX=false&resultHandlerFactory=#streamResultHandlerFactory") // Convert from v1.4 to 2.0
                     .endChoice()
                 .end()
@@ -79,7 +87,7 @@ public class MessagingRoute extends RestRouteBuilder {
         from("direct:" + CamelRouteNames.DEFAULT_PROCESSOR_QUEUE)
                 .process(p -> {
 
-                    String subscriptionId = getSubscriptionIdFromPath(p.getIn().getHeader(PARAM_PATH, String.class));
+                    String subscriptionId = p.getIn().getHeader("subscriptionId", String.class);
                     String datasetId = null;
 
                     InputStream xml = p.getIn().getBody(InputStream.class);
@@ -94,11 +102,10 @@ public class MessagingRoute extends RestRouteBuilder {
 
         from("direct:" + CamelRouteNames.FETCHED_DELIVERY_QUEUE)
                 .log("Processing fetched delivery")
-                .to("direct:map.protobuf.to.jaxb")
                 .process(p -> {
                     String routeName = null;
 
-                    String subscriptionId = getSubscriptionIdFromPath(p.getIn().getHeader(PARAM_PATH, String.class));
+                    String subscriptionId = p.getIn().getHeader("subscriptionId", String.class);
 
                     SubscriptionSetup subscription = subscriptionManager.get(subscriptionId);
                     if (subscription != null) {
